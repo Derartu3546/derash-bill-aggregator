@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BillStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  EXPIRED
+  CANCELLED
+}
+enum TransactionStatus {
+  PENDING
+  INITIATED
+  SUCCESS
+  FAILED
+  REVERSED
+  TIMEOUT
+}
+
+enum PaymentMethod {
+  CASH
+  MOBILE_APP
+  USSD
+  WEB
+  ATM
+  WALLET
+}
+
+enum UserRole { // Added: you need this enum
+  SYSTEM_ADMIN
+  BILLER_USER
+  AGENT_USER
+}
+
+
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String
+  fullName     String
+  role         UserRole
+  isActive     Boolean     @default(true)
+
+  biller       Biller?     @relation(fields:[billerId], references:[id])
+  billerId     String?
+
+  agent        Agent?      @relation(fields:[agentId], references:[id])
+  agentId      String?
+
+  agentEvents  AgentEvent[]   
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+
+model Biller {
+  id            String   @id @default(uuid())
+  name          String
+  code          String   @unique // e.g., "EEU" (Electricity)
+  category      String   // e.g., "UTILITY", "EDUCATION"
+  allowsPartial Boolean  @default(false)
+  apiEndPoint   String?
+  isActive      Boolean  @default(true)
+  users         User[]  
+  bills         Bill[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Agent {
+  id           String        @id @default(uuid())
+  name         String
+  code         String        @unique
+  users        User[]
+  isEnabled    Boolean       @default(true)
+  transactions Transaction[]
+  events       AgentEvent[]   
+  createdAt    DateTime      @default(now())
+}
+
+model Bill {
+  id            String        @id @default(uuid())
+  billReference String        // The ID the customer inputs (e.g., Meter No)
+  customerName  String?
+  amount        Decimal       @db.Decimal(12, 2)
+  amountPaid    Decimal       @default(0.00) @db.Decimal(12, 2)
+  currency      String        @default("ETB")
+  dueDate       DateTime?
+  status        BillStatus    @default(UNPAID)
+  period        String        // e.g., "2023-10"
+  billerId      String
+  biller        Biller        @relation(fields: [billerId], references: [id])
+  transactions  Transaction[]
+  phoneNumber String?
+  // Metadata for complex billers (e.g. meter readings, address)
+  additionalInfo Json?        
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([billReference, period, billerId])
+  @@index([billReference])
+}
+
+model Transaction {
+  id              String            @id @default(uuid())
+  transactionId   String            @unique // Internal System Reference
+  agentReference  String?           @unique // Reference from Bank/Wallet
+  billerReference String?           @unique // Reference returned by Biller (Receipt No)
+
+  amount          Decimal           @db.Decimal(12, 2) // Principal bill amount
+  fee             Decimal           @default(0.00) @db.Decimal(12, 2) // Service Fee
+  totalAmount     Decimal           @db.Decimal(12, 2) // amount + fee
+  
+  status          TransactionStatus @default(PENDING)
+  paymentMethod   PaymentMethod     @default(MOBILE_APP)
+  idempotencyKey  String            @unique // Prevents double charging
+  
+  billId          String
+  bill            Bill              @relation(fields: [billId], references: [id])
+  agentId         String
+  agent           Agent             @relation(fields: [agentId], references: [id])
+  
+  payerPhone      String?
+  initiatedBy     String?           // User/Operator ID
+  
+  // Error Tracking
+  errorCode       String?
+  errorMessage    String?
+  
+  // For easy reconciliation
+  settledWithAgent Boolean          @default(false)
+  settledWithBiller Boolean         @default(false)
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([transactionId])
+  @@index([agentReference])
+}
+
+
+// 5. The AgentEvent 
+model AgentEvent {
+  id         String   @id @default(uuid())
+  agentId    String
+  agent      Agent    @relation(fields: [agentId], references: [id])
+  userId     String?  // The specific teller who was sitting at the computer
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String   
+  metadata   Json     
+  createdAt  DateTime @default(now())
+}
+
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?  // The dashboard user (admin/staff) who performed the action
+  userEmail   String?  // Optional: for easier reading without a join
+  action      String   // e.g., "CREATE", "UPDATE", "DELETE", "FORCE_PAY", "REVERSE"
+  entityName  String   // e.g., "Biller", "Transaction", "Agent"
+  entityId    String   // The ID of the record that was changed
+  
+  // Storing the "Before" and "After" state as JSON
+  oldValues   Json?    
+  newValues   Json?    
+  
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+
+  @@index([entityName, entityId])
+  @@index([userId])
+}
