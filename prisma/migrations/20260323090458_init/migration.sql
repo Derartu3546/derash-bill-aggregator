@@ -32,6 +32,9 @@ CREATE TABLE "Biller" (
     "name" VARCHAR(100) NOT NULL,
     "code" VARCHAR(20) NOT NULL,
     "category" VARCHAR(50) NOT NULL,
+    "allows_partial" BOOLEAN NOT NULL DEFAULT false,
+    "charges_late_fee" BOOLEAN NOT NULL DEFAULT true,
+    "grace_period" INTEGER NOT NULL DEFAULT 0,
     "account_no" VARCHAR(50) NOT NULL,
     "apiEndPoint" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -47,7 +50,6 @@ CREATE TABLE "Customer" (
     "full_name" VARCHAR(100) NOT NULL,
     "email" TEXT,
     "phone_no" VARCHAR(15) NOT NULL,
-    "contract_number" VARCHAR(50) NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -103,7 +105,6 @@ CREATE TABLE "Transaction" (
     "status" "TransactionStatus" NOT NULL DEFAULT 'INITIATED',
     "payment_method" "PaymentMethod" NOT NULL DEFAULT 'MOBILE_APP',
     "raw_response" JSONB,
-    "initiated_by" TEXT,
     "payer_phone" TEXT,
     "agent_id" TEXT NOT NULL,
     "bill_id" TEXT NOT NULL,
@@ -144,10 +145,7 @@ CREATE UNIQUE INDEX "Customer_email_key" ON "Customer"("email");
 CREATE UNIQUE INDEX "Customer_phone_no_key" ON "Customer"("phone_no");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Customer_contract_number_key" ON "Customer"("contract_number");
-
--- CreateIndex
-CREATE INDEX "Customer_contract_number_idx" ON "Customer"("contract_number");
+CREATE INDEX "Customer_phone_no_idx" ON "Customer"("phone_no");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Agent_code_key" ON "Agent"("code");

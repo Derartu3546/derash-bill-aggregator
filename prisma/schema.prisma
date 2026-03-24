@@ -65,6 +65,9 @@ model Biller {
   name         String   @db.VarChar(100)
   code         String   @unique @db.VarChar(20) // e.g., "AAWSA"
   category     String   @db.VarChar(50)
+  allows_partial Boolean  @default(false)
+  charges_late_fee Boolean  @default(true)
+  grace_period   Int        @default(0)    // Days after due date before penalties apply
   account_no   String   @db.VarChar(50) 
   apiEndPoint  String?  
   isActive     Boolean  @default(true)
@@ -81,13 +84,12 @@ model Customer {
   full_name       String   @db.VarChar(100)
   email           String?  @unique
   phone_no        String   @unique @db.VarChar(15)
-  contract_number String   @unique @db.VarChar(50) // The "Water ID" or "Account ID"
   isActive        Boolean  @default(true)
   bills           Bill[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  @@index([contract_number])
+  @@index([phone_no])
 }
 
 model Agent {
@@ -112,9 +114,8 @@ model Bill {
   amount_paid      Decimal    @default(0) @db.Decimal(12, 2)
   remaining_bal    Decimal    @db.Decimal(12, 2)
   currency         String     @default("ETB") @db.VarChar(3)
-  status           BillStatus @default(UNPAID)
-  period           String    
-  due_date         DateTime?
+  status           BillStatus @default(UNPAID)   
+  due_date         DateTime
   paid_at          DateTime?
   biller_id        String
   biller           Biller     @relation(fields: [biller_id], references: [id])
@@ -144,8 +145,7 @@ model Transaction {
   status           TransactionStatus  @default(INITIATED)
   payment_method   PaymentMethod      @default(MOBILE_APP)
   raw_response     Json?             
-  initiated_by     String?
-  payer_phone      String?           
+  payer_phone      String?          
   agent_id         String
   agent            Agent             @relation(fields: [agent_id], references: [id])
   bill_id          String

@@ -1,8 +1,15 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { adminRoutes, agentRoutes } from './api/routes/agent.routes.ts';
 
 const fastify = Fastify({
   logger: true 
+});
+
+ await fastify.register(cors, {
+  origin: true,
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", 'x-admin-secret', 'x-api-key', 'x-agent-id'],
 });
 
 fastify.register(agentRoutes, { prefix: '/api/v1/agent' });

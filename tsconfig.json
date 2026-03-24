@@ -1,51 +1,33 @@
 {
-<<<<<<< HEAD
   "compilerOptions": {
- 
-    "target": "ES2022",                                  /* Modern JS for Node 20+ */
-    "module": "NodeNext",                                /* Required for "type": "module" */
+    "target": "ES2022",
+    "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
-    "rootDir": "./",                                     /* Includes root for prisma.config.ts */
+    "rootDir": "./",
     "outDir": "./dist",
     "removeComments": true,
-    "noEmit": false,                                     /* Allows tsc to compile files */
-
-    /* Strict Type-Checking Options */
-    "strict": true,                                      /* Enable all strict type-checking options */
+    "noEmit": true,
+    "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
-    "skipLibCheck": true,                                /* Speed up build, skip d.ts checks */
-
-    /* Module Resolution Options */
+    "skipLibCheck": true,
     "baseUrl": "./",
     "paths": {
-      "@/*": ["src/*"]                                   /* Optional: for cleaner imports */
+      "@/*": ["src/*"]
     },
-    "types": ["node"],                                   /* Fixes the 'process' error */
-    "esModuleInterop": true,                             /* Emits __importStar for compatibility */
-
-    /* Advanced Options */
+    "types": ["node"],
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,                           /* Allows importing .json files */
-    "isolatedModules": true                              /* Better compatibility with modern bundlers */
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+   "allowImportingTsExtensions": true
   },
   "include": [
     "src/**/*",
-    "prisma.config.ts.bak",                                  /* Crucial for Prisma 7 */
+    "prisma.config.ts",
     "prisma/**/*"
   ],
   "exclude": ["node_modules", "dist"]
 }
-=======
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ],
-  "compilerOptions": {"baseUrl": ".",
-"paths": {"@/*":
-["src/*"]
-}}}
->>>>>>> origin/frontend-dagi

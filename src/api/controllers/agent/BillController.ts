@@ -57,33 +57,5 @@ getAgentReport = async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.status(400).send({ status: "ERROR", message: error.message });
   }
 };
-
-// 2. For the Derash Admin (Full platform report)
-getAdminReport = async (request: FastifyRequest, reply: FastifyReply) => {
-  try {
-    // Admin can optionally pass an agent_id to filter, or leave blank for "ALL"
-   const { agent_id, date } = request.query as { agent_id?: string, date?: string };
-
-// Get both the detailed report and the high-level summary
-    const [report, summary] = await Promise.all([
-      this.agentService.getFullReport(agent_id),
-      this.agentService.getDailySummary(agent_id, date)
-    ]);
-  return reply.send({
-      status: "SUCCESS",
-      scope: "PLATFORM_GLOBAL",
-      generated_at: new Date().toISOString(),
-      summary: summary, // The "Big Picture" math
-      report: report    // The "Abebe paid X" list
-    });
-
-  } catch (error: any) {
-    return reply.status(400).
-    send({ status: "ERROR", 
-          message: "Invalid date format. Use YYYY-MM-DD"
-          
-   });
-  }
-};
  
 }
