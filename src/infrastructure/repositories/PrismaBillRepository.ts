@@ -136,4 +136,14 @@ export class PrismaBillRepository implements IBillRepository {
       }))
     }
   }
+
+  async findByBillerId(billerId: string) {
+    return await prisma.bill.findMany({
+      where: { billerId: billerId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        transactions: true
+      }
+    });
+  }
 }

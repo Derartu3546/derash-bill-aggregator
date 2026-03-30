@@ -54,6 +54,9 @@ model User {
   agentId      String?
 
   agentEvents  AgentEvent[]   
+  refreshTokens RefreshToken[]
+  auditLogs AuditLog[]
+
 
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -162,13 +165,13 @@ model AgentEvent {
 
 model AuditLog {
   id          String   @id @default(uuid())
-  userId      String?  // The dashboard user (admin/staff) who performed the action
-  userEmail   String?  // Optional: for easier reading without a join
-  action      String   // e.g., "CREATE", "UPDATE", "DELETE", "FORCE_PAY", "REVERSE"
-  entityName  String   // e.g., "Biller", "Transaction", "Agent"
-  entityId    String   // The ID of the record that was changed
-  
-  // Storing the "Before" and "After" state as JSON
+  userId      String?  
+  userEmail   String?  
+  action      String   
+  entityName  String   
+  entityId    String   
+  status      String      @default("SUCCESS")
+  description String?
   oldValues   Json?    
   newValues   Json?    
   
@@ -176,7 +179,19 @@ model AuditLog {
   userAgent   String?
   
   createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id])
+
 
   @@index([entityName, entityId])
   @@index([userId])
 }
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+

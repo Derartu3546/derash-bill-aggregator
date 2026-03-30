@@ -5,7 +5,7 @@ export class CreateBillerUseCase {
     
     async execute(input: any, userRole: string) {
         if (userRole !== 'SYSTEM_ADMIN') {
-            throw new Error('Unautorized: only Derash Admins can create Billers');
+            throw new Error('Unauthorized: only Derash Admins can create Billers');
         }
         input.code = input.code.toUpperCase();
         const existing = await this.billerRepo.findByCode(input.code );
@@ -14,3 +14,5 @@ export class CreateBillerUseCase {
         return await this.billerRepo.create(input);
     }
 }
+
+

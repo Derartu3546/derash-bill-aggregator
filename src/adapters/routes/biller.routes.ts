@@ -4,19 +4,24 @@ import { PrismaBillerRepository } from "../../infrastructure/repositories/Prisma
 import { IngestBillUseCase } from "../../application/use-cases/biller/IngestBillUseCase";
 import { PrismaBillRepository } from "../../infrastructure/repositories/PrismaBillRepository";
 import { authenticate } from "../hooks/auth.hook";
-import { request } from "node:http";
 import { CreateBillerSchema } from "../../shared/validators/biller.validator";
 import { IngestBillSchema } from "../../shared/validators/biller.validator";
 import { parseCsv } from "../../shared/utils/csvParser";
 import { ApiResponse } from "../../shared/utils/ApiResponse";
 import { GetBillerStatsUseCase } from "../../application/use-cases/biller/GetBillerStatusUseCase";
 import { prisma } from "../../infrastructure/database/prisma";
+import { CreateAuditLogUseCase } from "../../application/use-cases/admin/CreateAuditLogUseCase";
+import { PrismaAuditRepository } from "../../infrastructure/repositories/PrismaAuditRepository";
+import { GetBillerBillsUseCase } from "../../application/use-cases/biller/GetBillerBillsUseCase";
     
 const billRepo = new PrismaBillRepository();
 const billerRepo = new PrismaBillerRepository();
+const auditRepo = new PrismaAuditRepository();
 const createBillerUC = new CreateBillerUseCase(billerRepo);
+const createAuditUseCase = new CreateAuditLogUseCase(auditRepo);
 const ingestUseCase = new IngestBillUseCase(billRepo);
 const statsUseCase = new GetBillerStatsUseCase(billRepo);
+const getBillerBillUseCase = new GetBillerBillsUseCase(billRepo);
 
 
 export async function billerRoutes(fastify: FastifyInstance) {
@@ -29,9 +34,26 @@ export async function billerRoutes(fastify: FastifyInstance) {
         const biller = await createBillerUC.execute(
           validatedData,
           (request as any).user.role,
-        );
-        return { status: "SUCCESS", biller };
-      },
+          );
+          
+          await createAuditUseCase.execute({
+              userId: (request as any).user.id,
+              userEmail: (request as any).user.email,
+              action: 'CREATE',
+              entityName: 'Biller',
+              entityId: biller.id,
+              newValues: {
+                  name: biller.name,
+                  code: biller.code,
+                  category: biller.category
+              },
+              ipAddress: request.ip,
+              userAgent: request.headers['user-agent'],
+              status: 'SUCCESS'
+          });
+        return { status: "SUCCESS", message: "Biller registered successfully", data:biller };
+        },
+      
     );
 
 
@@ -43,39 +65,55 @@ export async function billerRoutes(fastify: FastifyInstance) {
             const result = await ingestUseCase.execute(validateBills, billerId, user);
             return { status: 'SUCCESS', ...result }
         } catch (e: any) {
-            if (e.name === 'ZodeError') {
-                return reply.status(400).send({
-                    status: 'VALIDATION_ERROR',
-                    errors: e.errors.map((err: any) => ({
-                        field: err.path[1], message: err.message
-                    }))
-                });
+            if (e.name === "ZodError") {
+              return reply.status(400).send({
+                status: "VALIDATION_ERROR",
+                errors: e.errors.map((err: any) => ({
+                  field: err.path.join('.'),
+                  message: err.message,
+                })),
+              });
             }
-            return reply.status(403).send({ status: 'FAILED', message: e.message });
+            return reply.status(500).send({ status: 'FAILED', message: e.message });
         }
     });
 
-    fastify.post('/billers/:billerId/upload-bills', { preHandler: authenticate }, async (request, reply) => {
+    fastify.post('/billers/upload-bills', { preHandler: authenticate }, async (request, reply) => {
+
         try {
-            const { billerId } = request.params as any;
-            const user = (request as any).user;
+            const user = (request as any).user; 
+            let targetBillerId: string; 
 
-            // Get the file from the request
+            
+            if (user.role === "SYSTEM_ADMIN") {
+                
+                targetBillerId = (request.query as any).billerId;
+                if (!targetBillerId) {
+                    return reply.status(400).send(ApiResponse.error("System Admin must provide a billerId in query parameters (e.g., ?billerId=YOUR_BILLER_UUID)"));
+                }
+                
+            } else if (user.role === "BILLER_USER") {
+                
+                targetBillerId = user.billerId;
+                if (!targetBillerId) {
+                    return reply.status(400).send(ApiResponse.error("Your Biller Admin account is not associated with any Biller. Please contact support."));
+                }
+            } else {
+                return reply.status(403).send(ApiResponse.error("Forbidden: Only Biller Admins or System Admins can upload bills."));
+            }
+
             const data = await request.file();
-            if (!data) throw new Error('No file uploaded');
+            if (!data) throw new Error('No CSV file uploaded');
 
-            // Parse CSV to JSON Array
             const fileBuffer = await data.toBuffer();
-            const rawBills = await parseCsv(fileBuffer);
-            // Format & Validate (Convert strings to numbers from CSV)
+            const rawBills = await parseCsv(fileBuffer); // Assuming parseCsv exists
+            
             const formattedBills = rawBills.map(b => {
-                const billReference =
-                  b.billReference || b.billReference || b.reference;
+                const billReference = b.billReference || b.billReference || b.customerReference || b.reference;
                 const amount = b.amount || b.Amount || b.Value;
                 const period = b.period || b.Period || b.Month;
                 const customerName = b.customerName || b.Customer || b.Name;
-
-                return { billReference, amount, period, customerName, raw: b };
+                return { billReference: billReference?.toString().trim(), amount : amount, period : period?.toString().trim(), customerName: customerName?.toString().trim(), raw: b };
             });
 
             formattedBills.forEach((bill, index) => {
@@ -84,7 +122,6 @@ export async function billerRoutes(fastify: FastifyInstance) {
                 }
             });
 
-            // Reformat bills after logging errors
             const finalBills = formattedBills.map(b => ({
                 billReference: b.billReference?.toString().trim(),
                 customerName: b.customerName?.toString().trim() || 'N/A',
@@ -96,13 +133,38 @@ export async function billerRoutes(fastify: FastifyInstance) {
                 throw new Error('Invalid amount found in CSV. Please ensure all amounts are numbers.');
             }
 
-            const result = await ingestUseCase.execute(finalBills, billerId, user);
+            const result = await ingestUseCase.execute(finalBills, targetBillerId, user); // 
+
+            
+            await createAuditUseCase.execute({
+              userId: user.id,
+              userEmail: user.email,
+              action: "BATCH_BILL_UPLOAD",
+              entityName: "Bill",
+              entityId: targetBillerId, 
+              newValues: { totalProcessed: result.total, successCount: result.success, failedCount: result.failed },
+              ipAddress: request.ip,
+              status: "SUCCESS"
+            });
+
+
             return ApiResponse.success(result, 'CSV processed successfully');
         }
         catch (e: any) {
+            await createAuditUseCase.execute({
+                userId: (request as any).user?.id,
+                userEmail: (request as any).user?.email,
+                action: "BATCH_BILL_UPLOAD_FAILED",
+                entityName: "Biller",
+                entityId:  "N/A",
+                newValues: { error: e.message, attemptedByRole: (request as any).user?.role },
+                ipAddress: request.ip,
+                status: "FAILED"
+            });
             return reply.status(400).send(ApiResponse.error(e.message));
         }
     });
+
 
     fastify.get('/billers/:billerId/stats', { preHandler: authenticate }, async (request, reply) => {
         try {
@@ -136,5 +198,27 @@ export async function billerRoutes(fastify: FastifyInstance) {
                 message: 'Failed to fetch billers'
             });
         }
-    })
+    });
+
+    fastify.get(
+      "/bills",
+      { preHandler: [authenticate] },
+      async (request, reply) => {
+        const user = (request as any).user;
+        const bills = await billRepo.findByBillerId(user.billerId);
+        const formattedData = bills.map((b) => ({
+          id: b.id,
+          bill_reference: b.billReference,
+          customer_name: b.customerName,
+          period: b.period,
+          amount_due: b.amount,
+          status: b.status,
+          createdAt: b.createdAt,
+        }));
+
+        return { status: "SUCCESS", data: formattedData };
+      },
+    );
+
+
 }

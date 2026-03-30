@@ -15,6 +15,9 @@ export class IngestBillUseCase {
 
     for (const billData of bills) {
       try {
+        if (!billData.billReference || !billData.period) {
+          throw new Error("Missing required fields: billReference or period");
+        }
         await this.billRepo.upsert({
           ...billData,
           billerId,

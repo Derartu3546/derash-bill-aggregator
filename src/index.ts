@@ -1,20 +1,31 @@
 import Fastify from "fastify";
 import { authRoutes } from "./adapters/routes/auth.routes";
 import { billerRoutes } from "./adapters/routes/biller.routes";
+import { agentRoutes } from "./adapters/routes/agent.routes";
 import { z } from "zod";
 import { prisma } from "../src/infrastructure/database/prisma";
 import multipart from "@fastify/multipart";
 import cors from "@fastify/cors";
 import bcrypt from "bcrypt";
+import fastifyCookie from "@fastify/cookie";
+import { billRoutes } from "./adapters/routes/billRoutes";
+import { adminRoutes } from "./adapters/routes/adminRoutes";
 
 const fastify = Fastify({ logger: true });
 
 // CORS
 fastify.register(cors, {
-  origin: "*",
+  origin: "http://localhost:5173",
   methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials:true,
   allowedHeaders: ["Content-Type", "Authorization"],
 });
+
+fastify.register(fastifyCookie, {
+  secret: "4dr0srh-ecet-ky-s2a2ee",
+  hook: 'onRequest',
+  parseOptions:{}
+})
 
 // Multipart
 fastify.register(multipart, {
@@ -24,6 +35,9 @@ fastify.register(multipart, {
 // Routes
 fastify.register(authRoutes, { prefix: "/api/v1" });
 fastify.register(billerRoutes, { prefix: "/api/v1" });
+fastify.register(agentRoutes, { prefix: "/api/v1" });
+fastify.register(billRoutes, { prefix: "/api/v1" });
+fastify.register(adminRoutes, { prefix: '/api/v1/admin' });
 
 // Health Check
 fastify.get("/health", async () => {
@@ -47,27 +61,6 @@ fastify.setErrorHandler((error: unknown, request, reply) => {
   }
 
   return reply.status(500).send({ status: "ERROR", message: "Unknown error" });
-});
-
-// Example Login Route
-fastify.post("/api/v1/login", async (req, reply) => {
-  const body = req.body as { email: string; password: string };
-  console.log("LOGIN ATTEMPT:", body);
-
-  const user = await prisma.user.findUnique({ where: { email: body.email } });
-  console.log("USER FOUND IN DB:", user ? "YES" : "NO");
-
-  if (!user) return reply.status(404).send({ message: "User not found" });
-
-  const isMatch = await bcrypt.compare(body.password, user.passwordHash);
-  console.log("PASSWORD MATCH:", isMatch);
-
-  if (!isMatch) return reply.status(401).send({ message: "Invalid password" });
-
-  return reply.send({
-    message: "Login successful",
-    user: { id: user.id, email: user.email },
-  });
 });
 
 // Start server

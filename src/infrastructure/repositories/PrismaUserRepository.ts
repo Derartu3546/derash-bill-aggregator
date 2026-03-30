@@ -1,6 +1,7 @@
 import { prisma } from '../database/prisma';
 import { IUserRepository } from '../../domain/repositories/IUserRepository';
 import { User, UserRole } from '../../domain/entities/User';
+import { RefreshToken } from '@prisma/client';
 
 
 export class PrismaUserRepository implements IUserRepository {
@@ -37,8 +38,21 @@ export class PrismaUserRepository implements IUserRepository {
       data.agentId || "",
     );
   }
-  async findById(id: string) {
-    return null;
+  async findById(id: string): Promise<User | null> {
+    const data = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!data) return null;
+
+    return new User(
+      data.id,
+      data.email,
+      data.role as UserRole,
+      data.fullName,
+      data.billerId || "",
+      data.agentId || "",
+    );
   }
   async update(user: any) {
     return user;
@@ -53,8 +67,26 @@ export class PrismaUserRepository implements IUserRepository {
   async getHashByEmail(email: string): Promise<string | null> {
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { passwordHash: true }
+      select: { passwordHash: true },
     });
     return user?.passwordHash || null;
+  }
+  async saveRefreshToken(userId: string, token: string, expiresAt: Date) {
+    return prisma.refreshToken.create({
+      data: { userId, token, expiresAt },
+    });
+  }
+  async findRefreshToken(token: string) {
+    return prisma.refreshToken.findUnique({
+      where: { token },
+      include: { user: true },
+    });
+  }
+  async deleteRefreshToken(token: string) {
+    return prisma.refreshToken.delete({ where: { token } });
+  }
+
+  async revokeAllUserTokens(userId: string) {
+    return prisma.refreshToken.deleteMany({ where: { userId } });
   }
 }
