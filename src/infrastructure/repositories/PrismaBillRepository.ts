@@ -23,7 +23,16 @@ export class PrismaBillRepository implements IBillRepository {
       where: { id },
     });
     if (!b) return null;
-    return new Bill(b.id, b.billReference, b.customerName, Number(b.amount), Number(b.amountPaid), b.status as BillStatus, b.period, b.billerId);
+    return new Bill(
+      b.id,
+      b.billReference,
+      b.customerName,
+      Number(b.amount),
+      Number(b.amountPaid),
+      b.status as BillStatus,
+      b.period,
+      b.billerId,
+    );
   }
 
   async findByReference(
@@ -81,7 +90,7 @@ export class PrismaBillRepository implements IBillRepository {
   }
 
   async upsert(data: any): Promise<void> {
-     await prisma.bill.upsert({
+    await prisma.bill.upsert({
       where: {
         billReference_period_billerId: {
           billReference: data.billReference,
@@ -94,7 +103,7 @@ export class PrismaBillRepository implements IBillRepository {
         amount: data.amount,
         customerName: data.customerName,
         status: data.status,
-        phoneNumber: data.phoneNumber
+        phoneNumber: data.phoneNumber,
       },
 
       create: {
@@ -112,38 +121,57 @@ export class PrismaBillRepository implements IBillRepository {
   }
 
   async getBillerStats(billerId: string) {
-    const [totals, statusBreakdown] = await Promise.all([
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [counts, revenueData, monthlyRevenueData] = await Promise.all([
+      
+      prisma.bill.groupBy({
+        by: ["status"],
+        where: { billerId },
+        _count: true,
+      }),
+      
       prisma.bill.aggregate({
         where: { billerId },
-        _count: { _all: true },
-        _sum: { amount: true }
+        _sum: { amountPaid: true, amount: true }, 
       }),
-      prisma.bill.groupBy({
-        by: ['status'],
-        where: { billerId },
-        _count: { _all: true },
-        _sum: { amount: true }
-      })
+      
+      prisma.bill.aggregate({
+        where: {
+          billerId,
+          createdAt: { gte: startOfMonth },
+        },
+        _sum: { amountPaid: true },
+      }),
     ]);
 
-    return {
-      totalBills: totals._count._all,
-      totalReceivableAmount: Number(totals._sum.amount) || 0,
-      breakdown: statusBreakdown.map(item => ({
-        status: item.status,
-        count: item._count._all,
-        amount: Number(item._sum.amount) || 0
-      }))
-    }
+    return { counts, revenueData, monthlyRevenueData };
   }
 
   async findByBillerId(billerId: string) {
     return await prisma.bill.findMany({
       where: { billerId: billerId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
-        transactions: true
-      }
+        transactions: true,
+      },
+    });
+  }
+
+  async findReportData(billerId: string, fromDate?: string, toDate?: string) {
+    return await prisma.bill.findMany({
+      where: {
+        billerId: billerId,
+        createdAt: {
+          ...(fromDate && { gte: new Date(fromDate) }),
+          ...(toDate && { lte: new Date(toDate) }),
+        },
+      },
+      include: {
+        transactions: true, // plural, matches Prisma model
+      },
+      orderBy: { createdAt: "desc" },
     });
   }
 }
