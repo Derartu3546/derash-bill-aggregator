@@ -34,6 +34,7 @@ export class LoginUseCase {
             email: user.email,
             fullName: user.fullName,
             role: user.role,
+            // mustChangePassword: user.mustChangePassword,
           },
         };
 

@@ -45,7 +45,7 @@ model User {
   passwordHash String
   fullName     String
   role         UserRole
-  isActive     Boolean     @default(true)
+  status       String     @default("active")
 
   biller       Biller?     @relation(fields:[billerId], references:[id])
   billerId     String?
@@ -56,6 +56,7 @@ model User {
   agentEvents  AgentEvent[]   
   refreshTokens RefreshToken[]
   auditLogs AuditLog[]
+  mustChangePassword Boolean  @default(true)
 
 
   createdAt    DateTime    @default(now())

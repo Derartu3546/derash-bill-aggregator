@@ -45,11 +45,15 @@ export class PrismaBillerRepository implements IBillerRepository {
     return data.map(this.mapToEntity);
   }
 
-  async update(biller: any): Promise<Biller> {
-    throw new Error("Not implemented");
-  }
+async update(id: string, updatedData: Partial<Biller>): Promise<Biller> {
+  const updated = await prisma.biller.update({
+    where: { id },
+    data: updatedData,
+  });
+  return this.mapToEntity(updated);
+}
   async delete(id: string): Promise<void> {
-    throw new Error("Not implemented");
+    await prisma.biller.delete({ where: { id } });
   }
 
   async getBillerStats(billerId: string) {

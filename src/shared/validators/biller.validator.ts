@@ -37,3 +37,11 @@ export const RegisterUserSchema = z.object({
     path: ['billerId']
 });
 
+
+export const UpdateBillerSchema = z.object({
+  name: z.string().optional(),
+  code: z.string().optional(),
+  category: z.string().optional(),
+  allowsPartial: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+});

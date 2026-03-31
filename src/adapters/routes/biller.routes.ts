@@ -4,7 +4,7 @@ import { PrismaBillerRepository } from "../../infrastructure/repositories/Prisma
 import { IngestBillUseCase } from "../../application/use-cases/biller/IngestBillUseCase";
 import { PrismaBillRepository } from "../../infrastructure/repositories/PrismaBillRepository";
 import { authenticate } from "../hooks/auth.hook";
-import { CreateBillerSchema } from "../../shared/validators/biller.validator";
+import { CreateBillerSchema, UpdateBillerSchema } from "../../shared/validators/biller.validator";
 import { IngestBillSchema } from "../../shared/validators/biller.validator";
 import { parseCsv } from "../../shared/utils/csvParser";
 import { ApiResponse } from "../../shared/utils/ApiResponse";
@@ -252,8 +252,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // src/infrastructure/web/routes/billerRoutes.ts
-
+  
   fastify.get(
     "/bills",
     { preHandler: [authenticate] },
@@ -299,4 +298,48 @@ export async function billerRoutes(fastify: FastifyInstance) {
       return { status: "SUCCESS", data: result };
     },
   );
+  fastify.put('/billers/:id', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+      const validatedData = UpdateBillerSchema.parse(request.body);
+      
+
+      const biller = await billerRepo.update(id, validatedData);
+      await createAuditUseCase.execute({
+        userId: (request as any).user.id,
+        userEmail: (request as any).user.email,
+        action: "UPDATE",
+        entityName: "Biller",
+        entityId: id,
+        newValues: validatedData,
+        ipAddress: request.ip,
+        status: "SUCCESS",
+      });
+      return { status: "SUCCESS", data: biller }
+    } catch (e: any) {
+      return reply.status(500).send({ status: 'FAILED', message: e.message });
+    }
+  });
+
+  fastify.delete("/billers/:id", { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { id } = request.params as any;
+
+      await billerRepo.delete(id);
+
+      await createAuditUseCase.execute({
+        userId: (request as any).user.id,
+        userEmail: (request as any).user.email,
+        action: "DELETE",
+        entityName: "Biller",
+        entityId: id,
+        newValues: {},
+        ipAddress: request.ip,
+        status: "SUCCESS",
+      });
+return {status: "SUCCESS", message: "Biller deleted successfully" }
+    } catch (e: any) {
+      return reply.status(500).send({ status: 'FAILED', message: e.message });
+    }
+  })
 }
