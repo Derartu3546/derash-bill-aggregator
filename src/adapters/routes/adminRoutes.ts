@@ -112,12 +112,31 @@ export async function adminRoutes(fastify: FastifyInstance) {
     { preHandler: [authenticate] },
     async (request, reply) => {
       const { id } = request.params as any;
-      await userRespo.delete(id);
+      const requester = (request as any).user;
+
+      if (requester.role !== "SYSTEM_ADMIN") {
+        return reply.status(403).send({
+          status: "FAILED",
+          message: "Only SYSTEM_ADMIN can delete users",
+        });
+      }
+
+      if (requester.id === id) {
+        return reply.status(400).send({
+          status: "FAILED",
+          message: "You cannot delete your own account while logged in!",
+        });
+      }
+
+      // await userRespo.delete(id);
+
+      await userRespo.delete(id, {});
+
       return { status: "SUCCESS", message: "User deleted" };
     },
   );
 
-  // In src/infrastructure/web/routes/adminRoutes.ts
+  
 
   fastify.patch(
     "/users/:id/toggle-status",

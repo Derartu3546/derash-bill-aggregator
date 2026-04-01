@@ -46,8 +46,9 @@ model User {
   fullName     String
   role         UserRole
   status       String     @default("active")
-
-  biller       Biller?     @relation(fields:[billerId], references:[id])
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
+  biller       Biller?     @relation(fields:[billerId], references:[id], onDelete: Cascade)
   billerId     String?
 
   agent        Agent?      @relation(fields:[agentId], references:[id])
@@ -72,6 +73,8 @@ model Biller {
   allowsPartial Boolean  @default(false)
   apiEndPoint   String?
   isActive      Boolean  @default(true)
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
   users         User[]  
   bills         Bill[]
   createdAt     DateTime @default(now())
@@ -84,6 +87,8 @@ model Agent {
   code         String        @unique
   users        User[]
   isEnabled    Boolean       @default(true)
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
   transactions Transaction[]
   events       AgentEvent[]   
   createdAt    DateTime      @default(now())
@@ -98,9 +103,11 @@ model Bill {
   currency      String        @default("ETB")
   dueDate       DateTime?
   status        BillStatus    @default(UNPAID)
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
   period        String        // e.g., "2023-10"
   billerId      String
-  biller        Biller        @relation(fields: [billerId], references: [id])
+  biller        Biller        @relation(fields: [billerId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
   phoneNumber String?
   // Metadata for complex billers (e.g. meter readings, address)
@@ -191,7 +198,7 @@ model RefreshToken {
   id        String   @id @default(uuid())
   token     String   @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
 }

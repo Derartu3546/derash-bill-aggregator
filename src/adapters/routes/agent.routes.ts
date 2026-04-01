@@ -40,7 +40,27 @@ export async function agentRoutes(fastify: FastifyInstance){
             //   status: "SUCCESS",
             // });
         return { status: 'SUCCESS', agent };
+        });
+    fastify.get("/agents", { preHandler: [authenticate] }, async (request, reply) => {
+        const agents = await agentRepo.findAll({ page: 1, limit: 100 });
+        return { status: 'SUCCESS', data: agents };
     });
+
+    fastify.put("/agents/:id", { preHandler: [authenticate] }, async (request, reply) => {
+        const { id } = request.params as any;
+        const { name, code, isEnabled } = request.body as any;
+
+        const updated = await agentRepo.update({
+            id, name, code, isEnabled
+        });
+        return {status:'SUCCESS', data:updated}
+    });
+
+    fastify.delete('/agents/:id', { preHandler: [authenticate] }, async (request, reply) => {
+        const { id } = request.params as any;
+        await agentRepo.delete(id);
+        return { status: "SUCCESS", message: "Agent deleted" };
+    })
 }
 
 

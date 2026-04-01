@@ -4,7 +4,6 @@ import { User, UserRole } from "../../domain/entities/User";
 import { RefreshToken } from "@prisma/client";
 
 export class PrismaUserRepository implements IUserRepository {
-  // ✅ Helper to map Prisma user object to domain entity
   private toDomain(u: any): User {
     return new User(
       u.id,
@@ -37,14 +36,22 @@ export class PrismaUserRepository implements IUserRepository {
 
   // Find by email
   async findByEmail(email: string): Promise<User | null> {
-    const u = await prisma.user.findUnique({ where: { email } });
+    const u = await prisma.user.findUnique({
+      where: {
+        email,
+      isDeleted: false
+     } });
     if (!u) return null;
     return this.toDomain(u);
   }
 
   // Find by ID
   async findById(id: string): Promise<User | null> {
-    const u = await prisma.user.findUnique({ where: { id } });
+    const u = await prisma.user.findUnique({
+      where: {
+        id,
+      isDeleted: false
+    } });
     if (!u) return null;
     return this.toDomain(u);
   }
@@ -65,13 +72,23 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   // Delete user
-  async delete(id: string): Promise<void> {
-    await prisma.user.delete({ where: { id } });
+  async delete(id: string, data: Partial<User>): Promise<User> {
+    const deleted =  await prisma.user.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    });
+    return this.toDomain(deleted);
   }
 
   // Find all users
   async findAll(): Promise<User[]> {
     const users = await prisma.user.findMany({
+      where: {
+        isDeleted: false
+      },
       orderBy: { createdAt: "desc" },
     });
 

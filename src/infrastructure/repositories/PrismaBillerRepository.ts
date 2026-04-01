@@ -30,54 +30,77 @@ export class PrismaBillerRepository implements IBillerRepository {
     return data ? this.mapToEntity(data) : null;
   }
 
-  async findAll(params: { search?: string; page: number; limit: number }): Promise<Biller[]> {
+  async findAll(params: {
+    search?: string;
+    page: number;
+    limit: number;
+  }): Promise<Biller[]> {
     const skip = (params.page - 1) * params.limit;
-    const where = params.search
-      ? {
+    const where: any = {
+      isDeleted: false,
+    };
+
+
+    if (params.search) {
+      where.AND = [
+        {
           OR: [
             { name: { contains: params.search, mode: "insensitive" as const } },
             { code: { contains: params.search, mode: "insensitive" as const } },
           ],
-        }
-      : {};
+        },
+      ];
+    }
 
-    const data = await prisma.biller.findMany({ where, skip, take: params.limit });
+    const data = await prisma.biller.findMany({
+      where,
+      skip,
+      take: params.limit,
+      orderBy: { createdAt: "desc" }, 
+    });
+
     return data.map(this.mapToEntity);
   }
 
-async update(id: string, updatedData: Partial<Biller>): Promise<Biller> {
-  const updated = await prisma.biller.update({
-    where: { id },
-    data: updatedData,
-  });
-  return this.mapToEntity(updated);
-}
-  async delete(id: string): Promise<void> {
-    await prisma.biller.delete({ where: { id } });
+  async update(id: string, updatedData: Partial<Biller>): Promise<Biller> {
+    const updated = await prisma.biller.update({
+      where: { id },
+      data: updatedData,
+    });
+    return this.mapToEntity(updated);
   }
 
   async getBillerStats(billerId: string) {
     const totals = await prisma.bill.aggregate({
       where: { billerId },
       _count: { _all: true },
-      _sum: { amount: true }
+      _sum: { amount: true },
     });
 
     const statusBreakdown = await prisma.bill.groupBy({
-      by: ['status'],
+      by: ["status"],
       where: { billerId },
       _count: { _all: true },
-      _sum: { amount: true }
+      _sum: { amount: true },
     });
 
     return {
       totalBills: totals._count._all,
       totalReceivableAmount: totals._sum.amount || 0,
-      breakdown: statusBreakdown.map(item => ({
+      breakdown: statusBreakdown.map((item) => ({
         status: item.status,
         count: item._count._all,
-        amount: item._sum.amount || 0
-      }))
+        amount: item._sum.amount || 0,
+      })),
     };
+  }
+  async delete(id: string): Promise<void> {
+    await prisma.biller.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    });
   }
 }

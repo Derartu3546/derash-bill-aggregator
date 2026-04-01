@@ -8,7 +8,7 @@ export interface IUserRepository {
   findAll(): Promise<User[]>;
   create(user: User): Promise<User>;
   update(id: string, data: Partial<User>): Promise<User>;
-  delete(id: string): Promise<void>;
+  delete(id: string, data: Partial<User>): Promise<User>;
   findByAgentId(agentId: string): Promise<User[]>;
   findByBillerId(billerId: string): Promise<User[]>;
   getHashByEmail(email: string): Promise<string | null>;

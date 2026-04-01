@@ -34,7 +34,7 @@ export async function authenticate(
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
     // (request as any).user = decoded;
    (request as any).user = {
-      id: decoded.userId,
+      id: decoded.id,
       role: decoded.role,
       agentId: decoded.agentId,
       billerId: decoded.billerId,

@@ -232,10 +232,12 @@ export async function billerRoutes(fastify: FastifyInstance) {
     { preHandler: authenticate },
     async (request, reply) => {
       try {
-        const billers = await prisma.biller.findMany({
-          orderBy: {
-            createdAt: "desc",
-          },
+        // Default pagination values
+        const page = 1;
+        const limit = 100;
+        const billers = await billerRepo.findAll({
+          page,
+          limit,
         });
 
         return reply.send({
@@ -244,7 +246,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
           data: billers,
         });
       } catch (error) {
-        return reply.status(5000).send({
+        return reply.status(500).send({
           status: "ERROR",
           message: "Failed to fetch billers",
         });

@@ -125,18 +125,17 @@ export class PrismaBillRepository implements IBillRepository {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [counts, revenueData, monthlyRevenueData] = await Promise.all([
-      
       prisma.bill.groupBy({
         by: ["status"],
         where: { billerId },
         _count: true,
       }),
-      
+
       prisma.bill.aggregate({
         where: { billerId },
-        _sum: { amountPaid: true, amount: true }, 
+        _sum: { amountPaid: true, amount: true },
       }),
-      
+
       prisma.bill.aggregate({
         where: {
           billerId,
@@ -173,5 +172,23 @@ export class PrismaBillRepository implements IBillRepository {
       },
       orderBy: { createdAt: "desc" },
     });
+  }
+
+  async delete(id: string): Promise<void> {
+    await prisma.bill.update({
+      where: { id },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+    });
+  }
+  async findMany(filters: any) {
+    return await prisma.bill.findMany({
+      where: {
+        ...filters,
+        isDeleted: false
+      }
+    })
   }
 }

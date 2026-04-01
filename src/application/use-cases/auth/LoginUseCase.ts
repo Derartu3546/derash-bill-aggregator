@@ -14,7 +14,21 @@ export class LoginUseCase {
             where:{email}
         })
       
-        if (!user) throw new Error('Invalid creadentials');
+      if (!user || user.isDeleted) throw new Error('Invalid creadentials');
+
+      if (user.billerId) {
+        const biller = await prisma.biller.findUnique({ where: { id: user.billerId } });
+        if (!biller || biller.isDeleted) {
+          throw new Error("Your organization account has been deactivated.");
+        }
+      }
+        if (user.agentId) {
+          const agent = await prisma.agent.findUnique({ where: { id: user.agentId } });
+          if (!agent || agent.isDeleted) {
+            throw new Error("Your Agent account has been deactivated");
+          }
+        }
+      
         const hash = await this.useRepo.getHashByEmail(email);
         const isMatch = await bcrypt.compare(password,user.passwordHash);
         if (!isMatch) throw new Error('Invalid email or password');
