@@ -15,6 +15,11 @@ export class LoginUseCase {
         })
       
       if (!user || user.isDeleted) throw new Error('Invalid creadentials');
+      if (user.status !== 'active') {
+         throw new Error(
+           "Your account is disabled. Please contact the administrator.",
+         );
+      }
 
       if (user.billerId) {
         const biller = await prisma.biller.findUnique({ where: { id: user.billerId } });

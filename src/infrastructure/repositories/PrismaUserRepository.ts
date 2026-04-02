@@ -12,6 +12,7 @@ export class PrismaUserRepository implements IUserRepository {
       u.fullName,
       u.status,
       u.passwordHash,
+      u.isDeleted,
       u.billerId || "",
       u.agentId || "",
     );
@@ -39,7 +40,7 @@ export class PrismaUserRepository implements IUserRepository {
     const u = await prisma.user.findUnique({
       where: {
         email,
-      isDeleted: false
+      // isDeleted: false
      } });
     if (!u) return null;
     return this.toDomain(u);
@@ -65,6 +66,8 @@ export class PrismaUserRepository implements IUserRepository {
         email: data.email,
         role: data.role,
         status: data.status,
+        passwordHash: data.passwordHash,
+        isDeleted: typeof data.isDeleted === 'boolean' ? data.isDeleted : undefined,
       },
     });
 

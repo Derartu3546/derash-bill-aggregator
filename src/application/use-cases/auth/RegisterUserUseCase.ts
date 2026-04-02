@@ -10,7 +10,15 @@ export class RegisterUserUseCase {
     async execute(input: any) {
         // Check if user exists
         const existing = await this.userRepo.findByEmail(input.email);
-        if (existing) throw new Error('User already exists');
+        if (existing) {
+            if (existing.isDeleted) {
+                const salt = await bcrypt.genSalt(10);
+                const passwordHash = await bcrypt.hash(input.password, salt);
+                return await this.userRepo.update(existing.id, { ...input, passwordHash, isDeleted: false, status: 'active' });
+            } else {
+                throw new Error("User already exists and is currently active");
+            }
+        }
 
         if (input.role === 'BILLER_USER' && !input.billerId) {
             throw new Error('A biller User must be linked to a Biller ID');

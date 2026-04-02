@@ -40,7 +40,6 @@ export class PrismaBillerRepository implements IBillerRepository {
       isDeleted: false,
     };
 
-
     if (params.search) {
       where.AND = [
         {
@@ -56,7 +55,7 @@ export class PrismaBillerRepository implements IBillerRepository {
       where,
       skip,
       take: params.limit,
-      orderBy: { createdAt: "desc" }, 
+      orderBy: { createdAt: "desc" },
     });
 
     return data.map(this.mapToEntity);
@@ -100,6 +99,17 @@ export class PrismaBillerRepository implements IBillerRepository {
       data: {
         isDeleted: true,
         deletedAt: new Date(),
+      },
+    });
+  }
+  async toggleStatus(id: string): Promise<void> {
+    const biller = await prisma.biller.findUnique({ where: { id } });
+
+    if (!biller) throw new Error("Biller not found");
+    await prisma.biller.update({
+      where: { id },
+      data: {
+        isActive: !biller.isActive, 
       },
     });
   }

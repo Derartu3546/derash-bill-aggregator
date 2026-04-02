@@ -76,7 +76,7 @@ async function main() {
     },
   });
 
-  console.log("✅ Seeding finished successfully!");
+  console.log(" Seeding finished successfully!");
 }
 
 main()
