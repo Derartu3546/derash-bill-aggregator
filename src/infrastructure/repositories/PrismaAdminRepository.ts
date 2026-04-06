@@ -2,20 +2,47 @@ import { prisma } from '../database/prisma';
 
 export class PrismaAdminRepository {
   async getGlobalStats() {
-    const [users, billers, agents, totalRevenue] = await Promise.all([
-      prisma.user.count(),
-      prisma.biller.count(),
-      prisma.agent.count(),
+    const [
+      totalActiveUsers,
+      totalActiveBillers,
+      totalActiveAgents,
+      totalActiveTransactions,
+      paidTransactionRevenue,
+    ] = await Promise.all([
+      prisma.user.count({
+        where: {
+          isDeleted: false,
+        },
+      }),
+      prisma.biller.count({
+        where: {
+          isDeleted: false,
+        },
+      }),
+      prisma.agent.count({
+        where: {
+          isDeleted: false,
+        },
+      }),
+      prisma.bill.count({
+        where: {
+          isDeleted: false,
+        },
+      }),
       prisma.bill.aggregate({
         _sum: { amountPaid: true },
+        where: {
+          status: "PAID",
+          isDeleted: false,
+        },
       }),
     ]);
-
     return {
-      totalUsers: users,
-      totalBillers: billers,
-      totalAgents: agents,
-      totalRevenue: totalRevenue._sum.amountPaid || 0,
+      totalUsers: totalActiveUsers,
+      totalBillers: totalActiveBillers,
+      totalAgents: totalActiveAgents,
+      totalTransactions: totalActiveTransactions,
+      totalRevenue: paidTransactionRevenue._sum.amountPaid || 0,
     };
   }
 }

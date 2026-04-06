@@ -12,6 +12,8 @@ export class PrismaBillerRepository implements IBillerRepository {
       data.code,
       data.category,
       data.allowsPartial,
+      data.isDeleted,
+      data.apiEndPoint,
       data.isActive,
       data.createdAt,
     );

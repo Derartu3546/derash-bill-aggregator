@@ -4,7 +4,7 @@ import * as bcrypt from "bcrypt";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Cleaning database...");
+  console.log("Cleaning database...");
 
   // 1. Delete in order (Children first, then parents) to avoid foreign key errors
   await prisma.refreshToken.deleteMany();
@@ -23,7 +23,7 @@ async function main() {
       code: "EEU",
       category: "UTILITY",
       allowsPartial: false,
-      isDeleted: false, // 🛡️ Important for our new Soft Delete logic
+      isDeleted: false, 
     },
   });
 
