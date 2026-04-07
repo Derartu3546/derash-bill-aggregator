@@ -96,12 +96,12 @@ model Agent {
 
 model Bill {
   id            String        @id @default(uuid())
-  billReference String        // The ID the customer inputs (e.g., Meter No)
-  customerName  String?
+  billReference String        
+  customerName  String?       
   amount        Decimal       @db.Decimal(12, 2)
   amountPaid    Decimal       @default(0.00) @db.Decimal(12, 2)
   currency      String        @default("ETB")
-  dueDate       DateTime?
+  dueDate       DateTime
   status        BillStatus    @default(UNPAID)
   isDeleted  Boolean   @default(false)
   deletedAt  DateTime?

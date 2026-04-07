@@ -96,29 +96,39 @@ export async function billerRoutes(fastify: FastifyInstance) {
     "/billers/upload-bills",
     { preHandler: authenticate },
     async (request, reply) => {
+      const user = (request as any).user;
+
       try {
-        const user = (request as any).user;
         let targetBillerId: string;
 
         if (user.role === "SYSTEM_ADMIN") {
           targetBillerId = (request.query as any).billerId;
+
           if (!targetBillerId) {
             return reply
               .status(400)
               .send(
                 ApiResponse.error(
-                  "System Admin must provide a billerId in query parameters (e.g., ?billerId=YOUR_BILLER_UUID)",
+                  "System Admin must provide a billerId in query parameters",
                 ),
               );
           }
+
+          const biller = await billerRepo.findById(targetBillerId);
+          if (!biller) {
+            return reply
+              .status(404)
+              .send(ApiResponse.error("Biller not found"));
+          }
         } else if (user.role === "BILLER_USER") {
           targetBillerId = user.billerId;
+
           if (!targetBillerId) {
             return reply
               .status(400)
               .send(
                 ApiResponse.error(
-                  "Your Biller Admin account is not associated with any Biller. Please contact support.",
+                  "Your account is not associated with any Biller. Contact support.",
                 ),
               );
           }
@@ -132,54 +142,78 @@ export async function billerRoutes(fastify: FastifyInstance) {
             );
         }
 
-        const data = await request.file();
-        if (!data) throw new Error("No CSV file uploaded");
+        const file = await request.file();
+        if (!file) {
+          throw new Error("No CSV file uploaded");
+        }
 
-        const fileBuffer = await data.toBuffer();
-        const rawBills = await parseCsv(fileBuffer); // Assuming parseCsv exists
+        // ... (Inside the route after parseCsv)
+        const buffer = await file.toBuffer();
+        const rawBills = await parseCsv(buffer);
 
-        const formattedBills = rawBills.map((b) => {
-          const billReference =
-            b.billReference ||
+        const validationErrors: string[] = [];
+        const finalBills: any[] = [];
+
+        rawBills.forEach((b: any, index: number) => {
+          const rowNumber = index + 2; // Header is 1, data starts at 2
+
+          // 🛡️ 1. Extract and Normalize
+          const billReference = (
             b.billReference ||
             b.customerReference ||
-            b.reference;
-          const amount = b.amount || b.Amount || b.Value;
-          const period = b.period || b.Period || b.Month;
-          const customerName = b.customerName || b.Customer || b.Name;
-          return {
-            billReference: billReference?.toString().trim(),
-            amount: amount,
-            period: period?.toString().trim(),
-            customerName: customerName?.toString().trim(),
-            raw: b,
-          };
-        });
+            b.reference ||
+            b.BillRef
+          )
+            ?.toString()
+            .trim();
+          const amountRaw = b.amount || b.Amount || b.Value || b.Total;
+          const period = (b.period || b.Period || b.Month)?.toString().trim();
+          const customerName =
+            (b.customerName || b.Customer || b.Name)?.toString().trim() ||
+            "N/A";
+          const dueDateRaw = b.due_date || b.DueDate || b.Due_Date || b.Expiry;
 
-        formattedBills.forEach((bill, index) => {
-          if (!bill.billReference || !bill.amount || !bill.period) {
-            console.error(`Row ${index + 1} is missing data:`, bill.raw);
+          // 🛡️ 2. Validation Logic
+          const rowErrors: string[] = [];
+          if (!billReference) rowErrors.push("Missing Reference");
+          if (!period) rowErrors.push("Missing Period");
+          if (!dueDateRaw) rowErrors.push("Missing Due Date"); // 🚀 Mandatory!
+
+          const amount = parseFloat(
+            amountRaw?.toString().replace(/[^0-9.-]+/g, ""),
+          );
+          if (isNaN(amount)) rowErrors.push("Invalid Amount");
+
+          const parsedDate = new Date(dueDateRaw);
+          if (isNaN(parsedDate.getTime()))
+            rowErrors.push("Invalid Date Format");
+
+          // 🛡️ 3. Collect Errors or Build Bill
+          if (rowErrors.length > 0) {
+            validationErrors.push(`Row ${rowNumber}: ${rowErrors.join(", ")}`);
+          } else {
+            finalBills.push({
+              billReference,
+              customerName,
+              amount,
+              period,
+              dueDate: parsedDate, // 🚀 Now a real Date object
+            });
           }
         });
 
-        const finalBills = formattedBills.map((b) => ({
-          billReference: b.billReference?.toString().trim(),
-          customerName: b.customerName?.toString().trim() || "N/A",
-          amount: parseFloat(b.amount),
-          period: b.period?.toString().trim(),
-        }));
-
-        if (finalBills.some((b) => isNaN(b.amount))) {
-          throw new Error(
-            "Invalid amount found in CSV. Please ensure all amounts are numbers.",
-          );
+        // 🚨 4. If ANY errors, STOP and return the list
+        if (validationErrors.length > 0) {
+          const errorMessage = `FILE VALIDATION FAILED:\n${validationErrors.slice(0, 10).join("\n")}${validationErrors.length > 10 ? "\n...and more" : ""}`;
+          return reply.status(400).send(ApiResponse.error(errorMessage));
         }
+
 
         const result = await ingestUseCase.execute(
           finalBills,
           targetBillerId,
           user,
-        ); //
+        );
 
         await createAuditUseCase.execute({
           userId: user.id,
@@ -196,22 +230,33 @@ export async function billerRoutes(fastify: FastifyInstance) {
           status: "SUCCESS",
         });
 
-        return ApiResponse.success(result, "CSV processed successfully");
+        return reply.send(
+          ApiResponse.success(result, "CSV processed successfully"),
+        );
       } catch (e: any) {
+        
         await createAuditUseCase.execute({
-          userId: (request as any).user?.id,
-          userEmail: (request as any).user?.email,
+          userId: user?.id,
+          userEmail: user?.email,
           action: "BATCH_BILL_UPLOAD_FAILED",
-          entityName: "Biller",
+          entityName: "Bill",
           entityId: "N/A",
           newValues: {
             error: e.message,
-            attemptedByRole: (request as any).user?.role,
+            attemptedByRole: user?.role,
           },
           ipAddress: request.ip,
           status: "FAILED",
         });
-        return reply.status(400).send(ApiResponse.error(e.message));
+
+        
+        
+        const statusCode =
+          e.message?.includes("invalid") || e.message?.includes("CSV")
+            ? 400
+            : 500;
+
+        return reply.status(statusCode).send(ApiResponse.error(e.message));
       }
     },
   );

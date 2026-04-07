@@ -48,10 +48,10 @@ export async function agentRoutes(fastify: FastifyInstance){
 
     fastify.put("/agents/:id", { preHandler: [authenticate] }, async (request, reply) => {
         const { id } = request.params as any;
-        const { name, code, isEnabled } = request.body as any;
+        const { name, code, isEnabled , isDeleted} = request.body as any;
 
         const updated = await agentRepo.update({
-            id, name, code, isEnabled
+            id, name, code, isEnabled, isDeleted
         });
         return {status:'SUCCESS', data:updated}
     });

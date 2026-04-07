@@ -9,7 +9,17 @@ export class CreateBillerUseCase {
         }
         input.code = input.code.toUpperCase();
         const existing = await this.billerRepo.findByCode(input.code );
-        if (existing) throw new Error('Biller already exists');
+        if (existing) {
+            if (existing.isDeleted) {
+                return await this.billerRepo.update(existing.id, {
+                  ...input,
+                  isDeleted: false,
+                  deletedAt: null,
+                });
+            } else {
+                throw new Error("A Biller with this code is already active.");
+            }
+        }
 
         return await this.billerRepo.create(input);
     }

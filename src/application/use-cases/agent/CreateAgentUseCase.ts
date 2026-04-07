@@ -10,7 +10,19 @@ export class CreateAgentUseCase {
         }
         input.code = input.code.toUpperCase();
         const existing = await this.agentRepo.findByCode(input.code);
-        if (existing) throw new Error('Agent already exists');
+        if (existing) {
+          if (existing.isDeleted) {
+            return await this.agentRepo.update({
+              id: existing.id,
+              ...input,
+              isDeleted: false,
+              deletedAt: null,
+              isEnabled:true
+            });
+          } else {
+           throw new Error("A Biller with this code is already active.");
+          }
+        }
 
         return await this.agentRepo.create(input);
     }

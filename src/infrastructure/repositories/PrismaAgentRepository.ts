@@ -63,6 +63,7 @@ export class PrismaAgentRepository implements IAgentRepository {
         name: agent.name,
         code: agent.code,
         isEnabled: agent.isEnabled,
+        isDeleted: agent.isDeleted
       },
     });
     return this.mapToEntity(updated);

@@ -3,7 +3,8 @@ export class Agent {
     public readonly id: string,
     public readonly name: string,
     public readonly code: string,
-      public readonly isEnabled: boolean = true,
+    public readonly isEnabled: boolean = true,
+      public readonly isDeleted: boolean = false,
     public readonly createdAt?: Date
   ) {}
 }

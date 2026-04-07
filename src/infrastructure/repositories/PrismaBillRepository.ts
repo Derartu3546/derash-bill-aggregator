@@ -102,6 +102,7 @@ export class PrismaBillRepository implements IBillRepository {
       update: {
         amount: data.amount,
         customerName: data.customerName,
+        dueDate: data.dueDate,
         status: data.status,
         phoneNumber: data.phoneNumber,
       },
@@ -112,10 +113,25 @@ export class PrismaBillRepository implements IBillRepository {
         customerName: data.customerName,
         amount: data.amount,
         amountPaid: data.amountPaid,
+        dueDate: data.dueDate,
         status: data.status,
         period: data.period,
         billerId: data.billerId,
         additionalInfo: data.additionalInfo,
+      },
+    });
+  }
+
+  async create(billData: any): Promise<void> {
+    await prisma.bill.create({
+      data: {
+        billReference: billData.billReference,
+        amount: billData.amount,
+        period: billData.period,
+        dueDate: billData.dueDate,
+        customerName: billData.customerName,
+        billerId: billData.billerId,
+        status: billData.status,
       },
     });
   }
@@ -187,8 +203,23 @@ export class PrismaBillRepository implements IBillRepository {
     return await prisma.bill.findMany({
       where: {
         ...filters,
-        isDeleted: false
-      }
-    })
+        isDeleted: false,
+      },
+    });
+  }
+
+  async findDuplicate(
+    billReference: string,
+    period: string,
+    billerId: string,
+  ): Promise<any | null> {
+    return await prisma.bill.findFirst({
+      where: {
+        billReference: billReference,
+        period: period,
+        billerId: billerId,
+        // isDeleted: false,
+      },
+    });
   }
 }

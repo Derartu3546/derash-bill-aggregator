@@ -9,12 +9,14 @@ export interface IBillRepository {
     period: string,
   ): Promise<Bill | null>;
 
+  create(billData: any): Promise<void>;
+
   upsert(billData: any): Promise<void>;
 
-  // used by agents when checking unpaid bills
+  findDuplicate(billReference: string, period:string, billerId:string): Promise<any | null>
+
   findActiveBillsForAgent(billReference: string): Promise<Bill[]>;
 
-  // update bill status during payment transaction
   updateStatus(
     id: string,
     tx: any,
@@ -22,6 +24,5 @@ export interface IBillRepository {
     amountPaid?: number,
   ): Promise<Bill>;
 
-  // lock bill during payment to avoid race conditions
   findByIdWithLock(id: string, tx: any): Promise<Bill | null>;
 }
