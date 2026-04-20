@@ -1,5 +1,9 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
    Derash Bill Aggregator Backend
+=======
+  # Derash Bill Aggregator Backend
+>>>>>>> 5735ec6c39aee30e568b70660cd2ef45bfb3dff6
 
 This is the central backend system for the Derash Bill Aggregator project. It handles bill management, agent transactions, and administrative reporting.
 
@@ -35,17 +39,17 @@ DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/derash_db?schema=public"
 Run the following commands to sync the database schema and load the test data:
 
 Bash
-# Generate the Prisma Client
-npx prisma generate
+ Generate the Prisma Client
+ 1 npx prisma generate
 
-# Apply migrations to create tables
-npx prisma migrate dev
+ Apply migrations to create tables
+ 2 npx prisma migrate dev
 
-# Seed the database with Billers, Agents, and Users
-npx prisma db seed
+ Seed the database with Billers, Agents, and Users
+3 npx prisma db seed
 
  Team Roles & Workflow
-To avoid code conflicts, please follow this workflow:
+ # To avoid code conflicts, please follow this workflow:
 
 Never push directly to main.
 
@@ -57,7 +61,7 @@ Push to your branch: git push origin feat/your-feature-name
 
 Open a Pull Request (PR) on GitHub for review.
 
-🛠 Tech Stack
+ # Tech Stack
 Framework: Fastify (Node.js)
 
 Database: PostgreSQL
@@ -65,6 +69,7 @@ Database: PostgreSQL
 ORM: Prisma
 
 Language: TypeScript
+<<<<<<< HEAD
 =======
 # React + TypeScript + Vite
 
@@ -140,3 +145,5 @@ export default defineConfig([
 ])
 ```
 >>>>>>> origin/frontend-dagi
+=======
+>>>>>>> 5735ec6c39aee30e568b70660cd2ef45bfb3dff6
