@@ -1,21 +1,16 @@
+import { prisma } from '@/core/lib/prisma.ts';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { AgentService } from '../../../core/services/AgentService.ts';
-
-// src/api/controllers/agent/BillController.ts
 
 export class BillController {
   private agentService = new AgentService();
 
- // src/api/controllers/agent/BillController.ts
-
 getBillInfo = async (request: FastifyRequest, reply: FastifyReply) => {
   const { reference } = request.params as { reference: string };
   
-  // Try to get agent_code from Headers OR Query String (for flexibility)
   const agentCode = (request.headers['x-agent-code'] as string) || 
                     (request.query as any)?.agent_code;
 
-  // IMPORTANT: If agentCode is missing, stop here with a clear error
   if (!agentCode) {
     return reply.status(400).send({ 
       success: false, 
@@ -29,33 +24,114 @@ getBillInfo = async (request: FastifyRequest, reply: FastifyReply) => {
     
     return reply.send({ success: true, data: bill });
   } catch (error: any) {
-    return reply.status(400).send({ success: false, error: error.message });
+    return reply.status(400).send({ success: false, message: error.message });
   }
 };
 
   processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // The body now contains the AUTO-GENERATED data from getBillInfo
+      
       const result = await this.agentService.confirmPayment(request.body as any);
-      return reply.send({ success: true, data: result });
+      return reply.send(result);
     } catch (error: any) {
-      return reply.status(400).send({ success: false, error: error.message });
+      return reply.status(400).send({ success: false, message: error.message });
     }
   };
 
 getAgentReport = async (request: FastifyRequest, reply: FastifyReply) => {
   try {
-    // We get the agent ID from the middleware's hard work
     const agent = (request as any).agent;
+  
+    const { fromDate, toDate } = request.query as { fromDate?: string; toDate?: string };
 
-    const report = await this.agentService.getFullReport(agent.id);
+    const report = await this.agentService.getFullReport({ agent_id: agent.id, fromDate, toDate });
+    
     return reply.send({ 
       status: "SUCCESS", 
-      agent_name: agent.name, // "Telebirr"
-      data: report });
+      agent_name: agent.name, 
+      data: report 
+    });
   } catch (error: any) {
     return reply.status(400).send({ status: "ERROR", message: error.message });
   }
 };
- 
+
+getDashboard = async (request: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const agentCodeHeader = request.headers['x-agent-code'] as string;
+    let agentId = (request as any).user?.id;
+
+    if (!agentId && agentCodeHeader) {
+      const agent = await prisma.agent.findUnique({
+        where: { code: agentCodeHeader },
+        select: { id: true }
+      });
+      agentId = agent?.id;
+    }
+
+    if (!agentId) {
+      return reply.status(401).send({ 
+        error: "Unauthorized", 
+        details: "No valid agent identification found in headers or session." 
+      });
+    }
+
+    const [stats, statusCounts, recentTransactions] = await Promise.all([
+      prisma.transaction.aggregate({
+        where: { agent_id: agentId },
+        _count: { id: true },
+        _sum: { total_amount: true },
+      }),
+      prisma.transaction.groupBy({
+        by: ['status'],
+        where: { agent_id: agentId },
+        _count: { id: true },
+      }),
+      prisma.transaction.findMany({
+        where: { agent_id: agentId },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          bill: {
+            include: {
+              customer: { select: { full_name: true } },
+              biller: { select: { name: true } }
+            }
+          }
+        }
+      })
+    ]);
+
+    const counts: Record<string, number> = {
+      successful: 0,
+      pending: 0,
+      failed: 0
+    };
+    
+    statusCounts.forEach((item) => {
+      const statusKey = item.status.toLowerCase();
+      counts[statusKey] = item._count.id;
+    });
+
+
+    return reply.send({
+      success: true,
+      stats: {
+        totalTransactions: stats._count.id || 0,
+        successfulTransactions: counts.successful || 0,
+        pendingTransactions: counts.pending || 0,
+        failedTransactions: counts.failed || 0,
+        totalRevenue: Number(stats._sum.total_amount) || 0,
+      },
+      recentTransactions: recentTransactions || []
+    });
+
+  } catch (error: any) {
+    console.error("Dashboard Controller Error:", error);
+    return reply.status(500).send({ 
+      error: "Internal Server Error", 
+      details: error.message 
+    });
+  }
+};
 }

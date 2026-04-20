@@ -2,27 +2,46 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@/core/lib/prisma.ts'; 
 
 export const validateApiKey = async (request: FastifyRequest, reply: FastifyReply) => {
-  const apiKey = request.headers['x-api-key'] as string;
+
+  const apiKey = (request.headers['x-api-key'] || request.headers['X-API-KEY']) as string;
 
   if (!apiKey) {
     return reply.status(401).send({ 
-      success: false, 
-      message: "Security Alert: API Key is missing." 
+      success: false,
+      error: "Unauthorized: Missing API Key" 
     });
   }
 
-  // Look up the agent who owns this key
   const agent = await prisma.agent.findUnique({
     where: { api_key: apiKey }
   });
-
-  if (!agent) {
+  
+if (!agent) {
     return reply.status(403).send({ 
-      success: false, 
-      message: "Access Denied: Invalid API Key." 
+      success: false,
+      error: "Access Denied: Invalid API Key" 
     });
   }
 
-  // Attach the agent object to the request so controllers can use it
+ 
   (request as any).agent = agent;
+  (request as any).user = agent; 
 };
+
+export async function checkSession(request: FastifyRequest, reply: FastifyReply) {
+  const token = request.cookies.token;
+
+  if (!token) {
+   
+    if (request.url.includes('/api/v1/agent') || request.url.includes('/api/v1/admin')) {
+      return reply.code(401).send({ error: "Authentication required. No session found." });
+    }
+  }
+
+  try {
+    
+    await request.jwtVerify();
+  } catch (err) {
+    return reply.code(401).send({ error: "Invalid or expired session" });
+  }
+}
