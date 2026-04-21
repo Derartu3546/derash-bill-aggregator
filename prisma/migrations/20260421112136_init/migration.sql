@@ -2,10 +2,10 @@
 CREATE TYPE "BillStatus" AS ENUM ('UNPAID', 'PARTIALLY_PAID', 'PAID', 'CANCELLED', 'EXPIRED');
 
 -- CreateEnum
-CREATE TYPE "TransactionStatus" AS ENUM ('INITIATED', 'PENDING', 'SUCCESSFUL', 'FAILED', 'REVERSED', 'TIMEOUT');
+CREATE TYPE "TransactionStatus" AS ENUM ('INITIATED', 'SUCCESSFUL', 'FAILED', 'EXPIRED', 'CANCELLED', 'REVERSED', 'TIMEOUT');
 
 -- CreateEnum
-CREATE TYPE "PaymentMethod" AS ENUM ('CASH', 'MOBILE_APP', 'BANK_TRANSFER', 'USSD', 'CARD', 'WEB', 'ATM');
+CREATE TYPE "PaymentMethod" AS ENUM ('CASH', 'MOBILE_APP', 'BANK_TRANSFER', 'USSD', 'CARD', 'WEB', 'ATM', 'WALLET');
 
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('SUPER_ADMIN', 'BILLER_ADMIN', 'AGENT_USER');
@@ -79,9 +79,9 @@ CREATE TABLE "Bill" (
     "remaining_bal" DECIMAL(12,2) NOT NULL,
     "currency" VARCHAR(3) NOT NULL DEFAULT 'ETB',
     "status" "BillStatus" NOT NULL DEFAULT 'UNPAID',
+    "due_date" TIMESTAMP(3) NOT NULL,
+    "paid_at" TIMESTAMP(3) NOT NULL,
     "period" TEXT NOT NULL,
-    "due_date" TIMESTAMP(3),
-    "paid_at" TIMESTAMP(3),
     "biller_id" TEXT NOT NULL,
     "customer_id" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -96,6 +96,7 @@ CREATE TABLE "Transaction" (
     "transactionId" TEXT NOT NULL,
     "agentReference" TEXT,
     "derash_ref" TEXT NOT NULL,
+    "billerReference" TEXT,
     "idempotencyKey" TEXT NOT NULL,
     "amount" DECIMAL(12,2) NOT NULL,
     "biller_share" DECIMAL(12,2) NOT NULL,
@@ -124,6 +125,23 @@ CREATE TABLE "AgentEvent" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "AgentEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AuditLog" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT,
+    "userEmail" TEXT,
+    "action" TEXT NOT NULL,
+    "entityName" TEXT NOT NULL,
+    "entityId" TEXT NOT NULL,
+    "oldValues" JSONB,
+    "newValues" JSONB,
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -160,6 +178,12 @@ CREATE INDEX "Agent_code_idx" ON "Agent"("code");
 CREATE UNIQUE INDEX "Bill_bill_reference_key" ON "Bill"("bill_reference");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Bill_period_key" ON "Bill"("period");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Bill_biller_id_key" ON "Bill"("biller_id");
+
+-- CreateIndex
 CREATE INDEX "Bill_bill_reference_idx" ON "Bill"("bill_reference");
 
 -- CreateIndex
@@ -172,6 +196,9 @@ CREATE UNIQUE INDEX "Transaction_agentReference_key" ON "Transaction"("agentRefe
 CREATE UNIQUE INDEX "Transaction_derash_ref_key" ON "Transaction"("derash_ref");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Transaction_billerReference_key" ON "Transaction"("billerReference");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Transaction_idempotencyKey_key" ON "Transaction"("idempotencyKey");
 
 -- CreateIndex
@@ -179,6 +206,12 @@ CREATE INDEX "Transaction_transactionId_idx" ON "Transaction"("transactionId");
 
 -- CreateIndex
 CREATE INDEX "Transaction_idempotencyKey_idx" ON "Transaction"("idempotencyKey");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_entityName_entityId_idx" ON "AuditLog"("entityName", "entityId");
+
+-- CreateIndex
+CREATE INDEX "AuditLog_userId_idx" ON "AuditLog"("userId");
 
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_agent_id_fkey" FOREIGN KEY ("agent_id") REFERENCES "Agent"("id") ON DELETE SET NULL ON UPDATE CASCADE;

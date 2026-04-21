@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  
 }
 
 datasource db {
@@ -17,9 +16,10 @@ enum BillStatus {
 
 enum TransactionStatus {
   INITIATED
-  PENDING
   SUCCESSFUL
   FAILED
+  EXPIRED
+  CANCELLED
   REVERSED
   TIMEOUT
 }
@@ -32,6 +32,7 @@ enum PaymentMethod {
   CARD
   WEB
   ATM
+  WALLET
 }
  enum UserRole {
   SUPER_ADMIN    // Derash Staff (Full System Control)
@@ -53,6 +54,7 @@ model User {
   
   biller_id String?
   biller    Biller?  @relation(fields: [biller_id], references: [id])
+ 
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -92,6 +94,7 @@ model Customer {
   @@index([phone_no])
 }
 
+
 model Agent {
   id           String        @id @default(uuid())
   name         String        @db.VarChar(100)
@@ -116,8 +119,9 @@ model Bill {
   currency         String     @default("ETB") @db.VarChar(3)
   status           BillStatus @default(UNPAID)   
   due_date         DateTime
-  paid_at          DateTime?
-  biller_id        String
+  paid_at          DateTime
+  period           String       @unique // e.g., "2023-10"
+  biller_id        String       @unique
   biller           Biller     @relation(fields: [biller_id], references: [id])
   customer_id      String
   customer         Customer   @relation(fields: [customer_id], references: [id])
@@ -134,6 +138,7 @@ model Transaction {
   transactionId     String        @unique
   agentReference    String?       @unique 
   derash_ref        String        @unique @default(cuid()) // Your internal ID
+  billerReference   String?           @unique // Reference returned by Biller (Receipt No)
   idempotencyKey    String        @unique 
 
   amount           Decimal            @db.Decimal(12, 2) 
@@ -165,3 +170,24 @@ model AgentEvent {
   error       String?
   createdAt   DateTime @default(now())
 }
+ model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?  // The dashboard user (admin/staff) who performed the action
+  userEmail   String?  // Optional: for easier reading without a join
+  action      String   // e.g., "CREATE", "UPDATE", "DELETE", "FORCE_PAY", "REVERSE"
+  entityName  String   // e.g., "Biller", "Transaction", "Agent"
+  entityId    String   // The ID of the record that was changed
+  
+  // Storing the "Before" and "After" state as JSON
+  oldValues   Json?    
+  newValues   Json?    
+  
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+
+  @@index([entityName, entityId])
+  @@index([userId])
+}
+
