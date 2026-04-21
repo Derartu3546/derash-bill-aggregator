@@ -1,7 +1,6 @@
 import { FastifyInstance } from 'fastify';
-
-import { authorize } from '@/core/middlewares/auth.hook.ts';
 import { loginHandler } from '../controllers/auth.controller.ts';
+import { authorize } from '@/core/middlewares/auth.hook.ts';
 
 export default async function authRoutes(fastify: FastifyInstance) {
   
