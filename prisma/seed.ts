@@ -5,7 +5,7 @@ async function main() {
   const saltRounds = 10;
   const commonPassword = await bcrypt.hash('password123', saltRounds);
 
-  console.log('🌱 Starting Seed...');
+  console.log('Starting Seed...');
 
   // 1. Create Super Admin (To manage the whole system)
   const admin = await prisma.user.upsert({
@@ -73,7 +73,7 @@ async function main() {
   });
 
   console.log(`
-  ✅ Seed Successful!
+  Seed Successful!
   -----------------------------------------------
   Super Admin: admin@derash.com / password123
   Biller User: biller@aawsa.com / password123
