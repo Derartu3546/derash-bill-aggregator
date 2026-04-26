@@ -1,27 +1,37 @@
-import { Bill, BillStatus } from "../entities/Bill";
+import { Bill, BillStatus } from "../entities/Bill.ts";
+import { Biller } from '../entities/Biller.ts';
+import { Customer } from '../entities/Customer.ts';
+
+// This allows your Service to access bill.biller and bill.customer
+export type BillWithRelations = Bill & {
+  biller: Biller;
+  customer: Customer;
+};
+
 
 export interface IBillRepository {
   findById(id: string): Promise<Bill | null>;
 
   findByReference(
-    billerId: string,
-    billReference: string,
+    biller_id: string,
+    bill_reference: string,
     period: string,
-  ): Promise<Bill | null>;
+  ): Promise<BillWithRelations | null>;
+  
 
   upsert(billData: any): Promise<void>;
 
   // used by agents when checking unpaid bills
-  findActiveBillsForAgent(billReference: string): Promise<Bill[]>;
+  findActiveBillsForAgent(bill_reference: string): Promise<Bill[]>;
 
   // update bill status during payment transaction
   updateStatus(
     id: string,
     tx: any,
-    status: BillStatus,
-    amountPaid?: number,
+    status: string,
+    amount_paid?: number,
   ): Promise<Bill>;
 
   // lock bill during payment to avoid race conditions
-  findByIdWithLock(id: string, tx: any): Promise<Bill | null>;
+  findByIdWithLock(id: string, tx: any): Promise<BillWithRelations | null>;
 }

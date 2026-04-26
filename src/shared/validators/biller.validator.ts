@@ -4,13 +4,12 @@ export const CreateBillerSchema = z.object({
     name: z.string().min(3, 'Name must be at least 3 characters'),
     code: z.string().min(2).max(10).toUpperCase(),
     category: z.enum(['UTILITY', 'EDUCATION', 'GOVERNMENT', 'OTHER']),
-    allowsPartial: z.boolean().default(false)
+    allows_partial: z.boolean().default(false)
 });
 
 export const IngestBillSchema = z.array(z.object({
-    billReference: z.string().min(1),
-    customerName: z.string().optional(),
-    amount: z.number().positive('Amount must be greater than zero'),
+    bill_reference: z.string().min(1),
+    amount_due: z.number().positive('Amount must be greater than zero'),
     period: z.string().regex(/^\d{4}-\d{2}$/, "Period must be YYYY-MM")
 }));
 
@@ -18,17 +17,17 @@ export const IngestBillSchema = z.array(z.object({
 export const RegisterUserSchema = z.object({
     email: z.string().email(),
     password: z.string().min(6),
-    fullName: z.string().min(3),
-    role: z.enum(['SYSTEM_ADMIN', 'BILLER_USER', 'AGENT_USER']),
-    billerId: z.string().optional(),
-    agentId: z.string().optional(),
+    name: z.string().min(3),
+    role: z.enum(['SUPER_ADMIN', 'BILLER_ADMIN', 'AGENT_USER']),
+    biller_id: z.string().optional(),
+    agent_id: z.string().optional(),
 }).refine((data) => {
     // RULE 1 if role is BILLER_USER , billerId is REQUIRED
-    if (data.role === 'BILLER_USER' && !data.billerId) {
+    if (data.role === 'BILLER_ADMIN' && !data.biller_id) {
         return false;
     }
     // RULE 2: If role is AGENT_USER, agentId is REQUIRED
-    if (data.role === 'AGENT_USER' && !data.agentId) {
+    if (data.role === 'AGENT_USER' && !data.agent_id) {
         return false;
     }
     return true;

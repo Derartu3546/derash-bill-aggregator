@@ -1,15 +1,15 @@
 import { cuid } from "zod";
-import { IBillerRepository } from "../../../domain/repositories/IBillerRepository";
+import { IBillerRepository } from "../../../domain/repositories/IBillerRepository.ts";
 
 export class GetBillerStatsUseCase {
     constructor(private billerRepo: any) { }
     
-    async execute(billerId: string, currentUser: any) {
-        if (currentUser.role !== 'SYSTEM_ADMIN' && currentUser.billerId !== billerId) {
+    async execute(biller_id: string, currentUser: any) {
+        if (currentUser.role !== 'SUPER_ADMIN' && currentUser.biller_id !== biller_id) {
             throw new Error('Unauthorized: You cannot acccess these financial insights');
         }
 
-        return await this.billerRepo.getBillerStats(billerId);
+        return await this.billerRepo.getBillerStats(biller_id);
 
     }
 }

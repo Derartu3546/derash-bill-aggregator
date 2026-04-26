@@ -1,14 +1,29 @@
-import { Biller } from '../entities/Biller';
+import { Biller } from '../entities/Biller.ts';
+
+// We define this interface here so your Use Cases know what to expect from the stats
+export interface BillerStats {
+  totalBills: number;
+  totalReceivableAmount: number;
+  breakdown: Array<{
+    status: string;
+    count: number;
+    amount: number;
+  }>;
+}
 
 export interface IBillerRepository {
   findById(id: string): Promise<Biller | null>;
   findByCode(code: string): Promise<Biller | null>;
-  create(biller: Biller): Promise<Biller>;
-  update(biller: Biller): Promise<Biller>;
+  create(biller: any): Promise<Biller>;
+  update(biller: any): Promise<Biller>;
   delete(id: string): Promise<void>;
-  findAll(params: {
+  count(): Promise<number>;
+  
+  findAll(params?: {
     search?: string;
-    page: number;
-    limit: number;
+    page?: number;
+    limit?: number;
   }): Promise<Biller[]>;
+
+  getBillerStats(billerId: string): Promise<BillerStats>;
 }

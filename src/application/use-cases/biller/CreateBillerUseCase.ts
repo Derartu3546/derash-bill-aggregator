@@ -1,10 +1,10 @@
-import { IBillerRepository } from "../../../domain/repositories/IBillerRepository";
+import { IBillerRepository } from "../../../domain/repositories/IBillerRepository.ts";
 
 export class CreateBillerUseCase {
     constructor(private billerRepo: IBillerRepository) { }
     
     async execute(input: any, userRole: string) {
-        if (userRole !== 'SYSTEM_ADMIN') {
+        if (userRole !== 'SUPER_ADMIN') {
             throw new Error('Unautorized: only Derash Admins can create Billers');
         }
         input.code = input.code.toUpperCase();

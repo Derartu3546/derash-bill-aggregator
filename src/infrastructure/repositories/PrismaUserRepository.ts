@@ -1,60 +1,111 @@
-import { prisma } from '../database/prisma';
-import { IUserRepository } from '../../domain/repositories/IUserRepository';
-import { User, UserRole } from '../../domain/entities/User';
-
+import { prisma } from '../database/prisma.ts';
+import { IUserRepository } from '../../domain/repositories/IUserRepository.ts';
+import { User, UserRole } from '../../domain/entities/User.ts';
 
 export class PrismaUserRepository implements IUserRepository {
-  async create(user: any): Promise<User> {
-    const created = await prisma.user.create({
-      data: {
-        email: user.email,
-        passwordHash: user.passwordHash,
-        fullName: user.fullName,
-        role: user.role,
-        billerId: user.billerId,
-        agentId: user.agentId,
-      },
-    });
-
-    return new User(
-      created.id,
-      created.email,
-      created.role as UserRole,
-      created.fullName,
-      created.billerId || "",
-      created.agentId || "",
-    );
-  }
-  async findByEmail(email: string): Promise<User | null> {
-    const data = await prisma.user.findUnique({ where: { email } });
-    if (!data) return null;
+  private mapToEntity(data: any): User {
     return new User(
       data.id,
       data.email,
       data.role as UserRole,
-      data.fullName,
-      data.billerId || "",
-      data.agentId || "",
+      data.password, 
+      data.name,
+      true, 
+      data.biller_id || undefined,
+      data.agent_id || undefined,
+      data.agent ? {
+        code: data.agent.code,
+        api_key: data.agent.api_key ?? "",
+        name: data.agent.name
+      } : undefined,
+      data.biller ? {
+        id: data.biller.id,
+        name: data.biller.name
+      } : undefined
     );
   }
-  async findById(id: string) {
-    return null;
+
+  async create(user: any): Promise<User> {
+    const created = await prisma.user.create({
+      data: {
+        email: user.email,
+        password: user.password, 
+        name: user.name,
+        role: user.role as any, 
+        biller_id: user.biller_id, 
+        agent_id: user.agent_id,   
+      },
+      include: {
+        agent: true,
+        biller: true
+      }
+    });
+
+    return this.mapToEntity(created);
   }
-  async update(user: any) {
-    return user;
+
+  async findByEmail(email: string): Promise<User | null> {
+    const data = await prisma.user.findUnique({ 
+      where: { email },
+      include: {
+        agent: true,
+        biller: true
+      }
+    });
+
+    if (!data) return null;
+    return this.mapToEntity(data);
   }
-  async delete(id: string) {}
-  async findByAgentId(id: string) {
-    return [];
-  }
-  async findByBillerId(id: string) {
-    return [];
-  }
+
   async getHashByEmail(email: string): Promise<string | null> {
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { passwordHash: true }
+      select: { password: true }
     });
-    return user?.passwordHash || null;
+    return user?.password || null;
+  }
+
+  async findById(id: string): Promise<User | null> {
+    const data = await prisma.user.findUnique({ 
+        where: { id },
+        include: { agent: true, biller: true } 
+    });
+    
+    if (!data) return null;
+    return this.mapToEntity(data);
+  }
+
+  async update(user: any): Promise<User> {
+    const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+            name: user.name, 
+            email: user.email,
+            // Only update password if explicitly provided and hashed
+            ...(user.password && { password: user.password }) 
+        },
+        include: { agent: true, biller: true }
+    });
+    return this.mapToEntity(updated);
+  }
+
+  async delete(id: string): Promise<void> {
+    await prisma.user.delete({ where: { id } });
+  }
+
+  async findByAgentId(agentId: string): Promise<User[]> {
+    const users = await prisma.user.findMany({ 
+        where: { agent_id: agentId },
+        include: { agent: true, biller: true }
+    });
+    return users.map(u => this.mapToEntity(u));
+  }
+
+  async findByBillerId(billerId: string): Promise<User[]> {
+    const users = await prisma.user.findMany({ 
+        where: { biller_id: billerId },
+        include: { agent: true, biller: true }
+    });
+    return users.map(u => this.mapToEntity(u));
   }
 }

@@ -1,29 +1,18 @@
-import { FastifyReply, FastifyRequest } from 'fastify';
-import bcrypt from 'bcrypt';
-import { prisma } from '@/core/lib/prisma.ts';
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { PrismaUserRepository } from "../../infrastructure/repositories/PrismaUserRepository.ts";
+import { LoginUseCase } from '@/application/use-cases/auth/LoginUseCase.ts';
+import { ApiResponse } from '@/shared/utils/ApiResponse.ts';
+
+const userRepo = new PrismaUserRepository();
+const loginUseCase = new LoginUseCase(userRepo);
 
 export const loginHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const { email, password } = request.body as any;
 
+  try {
+    const user = await loginUseCase.execute(email, password);
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: { agent: true, 
-               biller: true }
-  });
-
-  if (!user || !user.isActive) {
-    return reply.status(401).send({ error: "Invalid credentials" });
-  }
-
-
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    return reply.status(401).send({ error: "Invalid credentials" });
-  }
-
-
-  const token = await reply.jwtSign({ 
+    const token = await reply.jwtSign({ 
     userId: user.id, 
     role: user.role 
   });
@@ -37,29 +26,34 @@ export const loginHandler = async (request: FastifyRequest, reply: FastifyReply)
     maxAge: 8 * 60 * 60 
   });
 
+    const responseData = {
+      id: user.id,
+      name: user.name,
+      role: user.role,
 
-return {
-  message: "Login successful",
-  user: {
-    id: user.id,
-    name: user.name,
-    role: user.role,
-   
-    agent: user.agent ? {
-      id: user.agent.id,
-      code: user.agent.code,
-      api_key: user.agent.api_key,
-      name: user.agent.name
-    } : null,
-    biller: user.biller ? {
-      id: user.biller.id,
-      name: user.biller.name
-    } : null
+      agent: user.agent ? {
+        id: user.agent_id,
+        code: user.agent.code,
+        api_key: user.agent.api_key,
+        name: user.agent.name
+      } : null,
+      biller: user.biller ? {
+        id: user.biller.id,
+        name: user.biller.name
+      } : null
+    };
+
+    // 5. Wrap EVERYTHING in the ApiResponse.success
+    return ApiResponse.success(responseData, 'Login successful');
+
+  } catch (error: any) {
+    return reply.status(401).send(
+      ApiResponse.error(error.message, 'AUTH_FAILED')
+    );
   }
 };
-};
-export async function logoutHandler(request: FastifyRequest, reply: FastifyReply) {
 
+export async function logoutHandler(request: FastifyRequest, reply: FastifyReply) {
   reply
     .setCookie('token', '', {
       path: '/',
@@ -68,5 +62,5 @@ export async function logoutHandler(request: FastifyRequest, reply: FastifyReply
       sameSite: 'lax',
       expires: new Date(0),
     })
-    .send({ message: 'Logged out successfully' });
+    .send(ApiResponse.success(null, 'Logged out successfully'));
 }
