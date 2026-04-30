@@ -71,8 +71,16 @@ export async function billerRoutes(fastify: FastifyInstance) {
         const { billerId } = request.params as any;
         const user = (request as any).user;
         const validateBills = IngestBillSchema.parse(request.body);
+
+        const normalizedBills = validateBills.map((b: any) => ({
+          billReference: b.billReference,
+          customerName: b.customerName || "N/A",
+          amount: Number(b.amount),
+          period: b.period,
+          dueDate: new Date(b.due_date || b.dueDate),
+        }));
         const result = await ingestUseCase.execute(
-          validateBills,
+          normalizedBills,
           billerId,
           user,
         );
@@ -109,7 +117,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
               .status(400)
               .send(
                 ApiResponse.error(
-                  "System Admin must provide a billerId in query parameters",
+                  "System Admin must provide a billerId",
                 ),
               );
           }
@@ -142,22 +150,31 @@ export async function billerRoutes(fastify: FastifyInstance) {
             );
         }
 
-        const file = await request.file();
-        if (!file) {
-          throw new Error("No CSV file uploaded");
-        }
+        const data = await request.file();
+              if (!data) {
+                return reply
+                  .status(400)
+                  .send(ApiResponse.error("No CSV uploaded"));
+              }
 
-        // ... (Inside the route after parseCsv)
-        const buffer = await file.toBuffer();
+
+        // UI FALLBACK VALUES
+      
+        const uiPeriod = (data.fields.period as any)?.value?.toString().trim();
+        const uiDueDateRaw = (data.fields.dueDate as any)?.value?.toString().trim();
+        const uiDueDate = uiDueDateRaw ? new Date(uiDueDateRaw) : null;
+
+        const buffer = await data.toBuffer();
         const rawBills = await parseCsv(buffer);
 
         const validationErrors: string[] = [];
         const finalBills: any[] = [];
 
         rawBills.forEach((b: any, index: number) => {
-          const rowNumber = index + 2; // Header is 1, data starts at 2
+          const rowNumber = index + 2; 
+          const rowErrors: string[] = [];
 
-          // 🛡️ 1. Extract and Normalize
+          //  1. Extract and Normalize
           const billReference = (
             b.billReference ||
             b.customerReference ||
@@ -167,28 +184,37 @@ export async function billerRoutes(fastify: FastifyInstance) {
             ?.toString()
             .trim();
           const amountRaw = b.amount || b.Amount || b.Value || b.Total;
-          const period = (b.period || b.Period || b.Month)?.toString().trim();
+          const csvPeriod = (b.period || b.Period || b.Month)?.toString().trim();
+          const csvDueDateRaw = b.due_date || b.DueDate || b.Due_Date || b.Expiry;
           const customerName =
-            (b.customerName || b.Customer || b.Name)?.toString().trim() ||
-            "N/A";
-          const dueDateRaw = b.due_date || b.DueDate || b.Due_Date || b.Expiry;
+            (b.customerName || b.Customer || b.Name)?.toString().trim() || null;
+          
 
-          // 🛡️ 2. Validation Logic
-          const rowErrors: string[] = [];
+          const finalPeriod = csvPeriod || uiPeriod;
+
+          // Use CSV data if it exists , otherwise use UI fallback
+          let finalDueDate: Date | null = null;
+          if (csvDueDateRaw) {
+            finalDueDate = new Date(csvDueDateRaw)
+          } else if (uiDueDate) {
+            finalDueDate = uiDueDate;
+          }
+
           if (!billReference) rowErrors.push("Missing Reference");
-          if (!period) rowErrors.push("Missing Period");
-          if (!dueDateRaw) rowErrors.push("Missing Due Date"); // 🚀 Mandatory!
-
           const amount = parseFloat(
             amountRaw?.toString().replace(/[^0-9.-]+/g, ""),
           );
           if (isNaN(amount)) rowErrors.push("Invalid Amount");
+           if (amount <= 0) rowErrors.push("Amount must be greater than zero");
 
-          const parsedDate = new Date(dueDateRaw);
-          if (isNaN(parsedDate.getTime()))
-            rowErrors.push("Invalid Date Format");
+          if (!finalPeriod) {
+            rowErrors.push("Missing Period (CSV or UI required)");
+          }
+          if (!finalDueDate || isNaN(finalDueDate.getTime())) {
+            rowErrors.push('Missing or Invalid Due Date(Required in CSV or UI');
+          }
 
-          // 🛡️ 3. Collect Errors or Build Bill
+          //  3. Collect Errors or Build Bill
           if (rowErrors.length > 0) {
             validationErrors.push(`Row ${rowNumber}: ${rowErrors.join(", ")}`);
           } else {
@@ -196,13 +222,16 @@ export async function billerRoutes(fastify: FastifyInstance) {
               billReference,
               customerName,
               amount,
-              period,
-              dueDate: parsedDate, // 🚀 Now a real Date object
+              period: finalPeriod,
+              dueDate: finalDueDate,
+              billerId: targetBillerId,
+              status: "UNPAID",
+              currency: "ETB",
             });
           }
         });
 
-        // 🚨 4. If ANY errors, STOP and return the list
+        //  4. If ANY errors, STOP and return the list
         if (validationErrors.length > 0) {
           const errorMessage = `FILE VALIDATION FAILED:\n${validationErrors.slice(0, 10).join("\n")}${validationErrors.length > 10 ? "\n...and more" : ""}`;
           return reply.status(400).send(ApiResponse.error(errorMessage));

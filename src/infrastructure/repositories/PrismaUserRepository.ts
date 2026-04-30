@@ -29,6 +29,7 @@ export class PrismaUserRepository implements IUserRepository {
         status: user.status || "active",
         billerId: user.billerId,
         agentId: user.agentId,
+        mustChangePassword: user.mustChangePassword,
       },
     });
 

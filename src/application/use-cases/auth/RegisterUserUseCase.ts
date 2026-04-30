@@ -8,13 +8,18 @@ export class RegisterUserUseCase {
     )
     { }
     async execute(input: any) {
-        // Check if user exists
         const existing = await this.userRepo.findByEmail(input.email);
         if (existing) {
             if (existing.isDeleted) {
                 const salt = await bcrypt.genSalt(10);
                 const passwordHash = await bcrypt.hash(input.password, salt);
-                return await this.userRepo.update(existing.id, { ...input, passwordHash, isDeleted: false, status: 'active' });
+                return await this.userRepo.update(existing.id, {
+                  ...input,
+                  passwordHash,
+                  isDeleted: false,
+                  status: "active",
+                  mustChangePassword: true,
+                });
             } else {
                 throw new Error("User already exists and is currently active");
             }
@@ -37,8 +42,9 @@ export class RegisterUserUseCase {
         // Save to DB
 
         return await this.userRepo.create({
-            ...input,
-            passwordHash
+          ...input,
+          passwordHash,
+          mustChangePassword: true,
         });
     }
 }

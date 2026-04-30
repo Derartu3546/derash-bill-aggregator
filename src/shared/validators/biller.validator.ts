@@ -7,12 +7,26 @@ export const CreateBillerSchema = z.object({
     allowsPartial: z.boolean().default(false)
 });
 
-export const IngestBillSchema = z.array(z.object({
-    billReference: z.string().min(1),
+
+export const IngestBillSchema = z.array(
+  z.object({
+    billReference: z.string().min(1, "billReference is required"),
+
     customerName: z.string().optional(),
-    amount: z.number().positive('Amount must be greater than zero'),
-    period: z.string().regex(/^\d{4}-\d{2}$/, "Period must be YYYY-MM")
-}));
+
+    amount: z.preprocess(
+      (val) => Number(val),
+      z.number().positive("Amount must be greater than zero"),
+    ),
+
+    period: z.string().regex(/^\d{4}-\d{2}$/, "Period must be YYYY-MM"),
+
+    dueDate: z.preprocess(
+      (val) => new Date(val as string),
+      z.date({ error: "Invalid dueDate format" }),
+    ),
+  }),
+);
 
 
 export const RegisterUserSchema = z.object({

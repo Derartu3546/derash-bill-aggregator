@@ -1,7 +1,7 @@
 import { prisma } from "../database/prisma";
 import { IBillRepository } from "../../domain/repositories/IBillRepository";
 import { Bill, BillStatus } from "../../domain/entities/Bill";
-import { count } from "node:console";
+
 
 export class PrismaBillRepository implements IBillRepository {
   private mapToEntity(data: any): Bill {
@@ -11,6 +11,7 @@ export class PrismaBillRepository implements IBillRepository {
       data.customerName,
       Number(data.amount),
       Number(data.amountPaid),
+      data.dueDate,
       data.status as BillStatus,
       data.period,
       data.billerId,
@@ -23,16 +24,7 @@ export class PrismaBillRepository implements IBillRepository {
       where: { id },
     });
     if (!b) return null;
-    return new Bill(
-      b.id,
-      b.billReference,
-      b.customerName,
-      Number(b.amount),
-      Number(b.amountPaid),
-      b.status as BillStatus,
-      b.period,
-      b.billerId,
-    );
+    return this.mapToEntity(b);
   }
 
   async findByReference(
