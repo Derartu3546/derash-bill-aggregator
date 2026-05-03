@@ -68,8 +68,40 @@ async function main() {
       name: 'CBE Teller',
       password: commonPassword,
       role: 'AGENT_USER',
-      agent_id: bankAgent.id, // Linking the user to the agent
+      agent_id: bankAgent.id,
     },
+  });
+
+
+  // ---6 CUSTOMERS ---
+
+  const abebe = await prisma.customer.upsert({
+    where: { id: 'CUST-001' },
+    update: {},
+    create: {
+           id:'CUST-001',
+           full_name: 'Abebe Kebede',
+           phone_no: '0911223344' 
+     }
+  });
+
+  const chala = await prisma.customer.upsert({
+    where: { id: 'CUST-GEN-001'},
+    update: {},
+    create: { 
+      id: 'CUST-GEN-001',
+      full_name: 'Chala Tadesse',
+      phone_no: '0922334455' }
+  });
+
+
+  const sara = await prisma.customer.upsert({
+     where: { id: "CUST-002"},
+     update: {},
+     create: { 
+      id: 'CUST-002',
+      full_name: 'Sara Tesfaye',
+      phone_no: '0933445566' }
   });
 
   console.log(`

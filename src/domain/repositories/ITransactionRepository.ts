@@ -17,19 +17,21 @@ export interface ITransactionRepository {
         agent_share: number;
         aggregator_share: number;
         biller_share: number;
+        raw_response?: any;
     }, tx?: any): Promise<Transaction>;
     
-    // Crucial for status updates after bank confirmation
+   
     updateStatus(id: string, status: TransactionStatus, extras?: { 
         billerReference?: string, 
         amount?: number,
         biller_share?: number,
         agent_share?: number,
         aggregator_share?: number,
+        total_amount?: number,
         raw_response?: any 
     }, tx?: any): Promise<Transaction>;
 
-    // Find all transactions for a specific agent (e.g., CBE)
+  
     findByAgent(agentId: string): Promise<Transaction[]>;
 }
 

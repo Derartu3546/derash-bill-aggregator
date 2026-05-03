@@ -119,9 +119,9 @@ model Bill {
   currency         String     @default("ETB") @db.VarChar(3)
   status           BillStatus @default(UNPAID)   
   due_date         DateTime
-  paid_at          DateTime
-  period           String       @unique // e.g., "2023-10"
-  biller_id        String       @unique
+  paid_at          DateTime?
+  period           String       
+  biller_id        String     
   biller           Biller     @relation(fields: [biller_id], references: [id])
   customer_id      String
   customer         Customer   @relation(fields: [customer_id], references: [id])
@@ -131,6 +131,7 @@ model Bill {
   updatedAt        DateTime   @updatedAt
 
   @@index([bill_reference])
+  @@unique([bill_reference, biller_id]) // Ensure uniqueness of bill reference within a biller
  }
 
 model Transaction {

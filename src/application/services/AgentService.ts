@@ -64,111 +64,113 @@ export class AgentService {
   }
 
   async confirmPayment(data: {
-    bill_id: string;
-    agent_id: string;
-    transactionId: string;
-    amount: number;
-    payment_method: PaymentMethod;
-    idempotencyKey: string;
-    payer_phone?: string;
-  }) {
-    const agent = await this.agentRepo.findById(data.agent_id);
-    if (!agent) throw new Error("Unauthorized Agent.");
+  bill_id: string;
+  agent_id: string;
+  transactionId: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  idempotencyKey: string;
+  payer_phone?: string;
+}) {
+  const agent = await this.agentRepo.findById(data.agent_id);
+  if (!agent) throw new Error("Unauthorized Agent.");
 
-    const isPhoneEmpty = !data.payer_phone || data.payer_phone.trim().length === 0;
+  const isPhoneEmpty = !data.payer_phone || data.payer_phone.trim().length === 0;
 
-    if (agent.code === 'TELEBIRR' && isPhoneEmpty) {
-      throw new Error("Payer phone number is required for Telebirr transactions.");
-    }
-
-    // STEP 1: CREATE PENDING RECORD via Repository
-    const initialTx = await this.transactionRepo.create({
-      transactionId: data.transactionId,
-      idempotencyKey: data.idempotencyKey,
-      amount: 0,
-      total_amount: Number(data.amount),
-      status: 'PENDING',
-      payment_method: data.payment_method,
-      agent_id: data.agent_id,
-      bill_id: data.bill_id,
-      payer_phone: data.payer_phone || " ",
-      agent_share: 0,
-      aggregator_share: 0,
-      biller_share: 0,
-    });
-
-    try {
-      return await prisma.$transaction(async (tx) => {
-        // STEP 2: Fetch data using locked repository method
-        const bill = await this.billRepo.findByIdWithLock(data.bill_id, tx);
-
-        if (!bill || bill.status === 'PAID') throw new Error("Bill already paid or not found.");
-
-        const calc = BillingEngine.calculate(bill);
-        const paymentAmount = Number(data.amount);
-
-        if (calc.isBlocked) throw new Error(calc.blockReason);
-
-        if (paymentAmount > calc.totalRequired) {
-          throw new Error(`Overpayment not allowed. Maximum payable: ${calc.totalRequired} ${bill.currency}`);
-        }
-
-        if (!bill.biller.allows_partial && paymentAmount < calc.totalRequired) {
-          throw new Error(`This biller requires full payment of ${calc.totalRequired}`);
-        }
-
-        if (isNaN(paymentAmount) || paymentAmount <= 0) throw new Error("Invalid payment amount.");
-
-        const principalPaid = paymentAmount - calc.penaltyFee;
-        let agentCommission = agent.code === 'TELEBIRR' ? 1.50 : 2.00;
-
-        // STEP 3: UPDATE TRANSACTION via Repository
-        const transaction = await this.transactionRepo.updateStatus(
-          initialTx.id,
-          'SUCCESSFUL',
-          {
-            amount: principalPaid,
-            biller_share: principalPaid - agentCommission - 1.00,
-            agent_share: agentCommission,
-            aggregator_share: 1.00 + calc.penaltyFee,
-          },
-          tx
-        );
-
-        // STEP 4: UPDATE BILL via Repository
-        const newRemaining = Number(bill.remaining_bal) - principalPaid;
-        const isSettled = newRemaining <= 0;
-
-        await this.billRepo.updateStatus(
-          bill.id,
-          tx,
-          isSettled ? 'PAID' : 'PARTIALLY_PAID',
-          principalPaid
-        );
-
-        return {
-          message: isSettled ? "Full Payment Successful" : "Partial Payment Successful",
-          receipt: {
-            transaction_ref: transaction.transactionId,
-            customer: bill.customer.full_name,
-            amount_paid: `${paymentAmount} ${bill.currency}`,
-            remaining_balance: newRemaining,
-            status: isSettled ? "FULLY PAID" : "PARTIALLY PAID",
-            due_date: bill.due_date.toISOString().split('T')[0],
-            paymentDate: new Date().toISOString().split('T')[0],
-          },
-        };
-      });
-    } catch (error: any) {
-      // Mark as FAILED via repository on error
-      await this.transactionRepo.updateStatus(initialTx.id, 'FAILED');
-      throw error;
-    }
+  if (agent.code === 'TELEBIRR' && isPhoneEmpty) {
+    throw new Error("Payer phone number is required for Telebirr transactions.");
   }
 
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // STEP 1: Fetch and Lock the Bill
+      const bill = await this.billRepo.findByIdWithLock(data.bill_id, tx);
+
+      if (!bill || bill.status === 'PAID') throw new Error("Bill already paid or not found.");
+
+      const calc = BillingEngine.calculate(bill);
+      const paymentAmount = Number(data.amount);
+
+      if (calc.isBlocked) throw new Error(calc.blockReason);
+
+      if (paymentAmount > calc.totalRequired) {
+        throw new Error(`Overpayment not allowed. Maximum payable: ${calc.totalRequired} ${bill.currency}`);
+      }
+
+      if (!bill.biller.allows_partial && paymentAmount < calc.totalRequired) {
+        throw new Error(`This biller requires full payment of ${calc.totalRequired}`);
+      }
+
+      if (isNaN(paymentAmount) || paymentAmount <= 0) throw new Error("Invalid payment amount.");
+
+      const principalPaid = paymentAmount - calc.penaltyFee;
+      let agentCommission = agent.code === 'TELEBIRR' ? 1.50 : 2.00;
+
+  
+      const transaction = await this.transactionRepo.create({
+        transactionId: data.transactionId,
+        idempotencyKey: data.idempotencyKey,
+        amount: principalPaid,
+        total_amount: paymentAmount,
+        status: 'SUCCESSFUL', // Created directly as SUCCESSFUL
+        payment_method: data.payment_method,
+        agent_id: data.agent_id,
+        bill_id: data.bill_id,
+        payer_phone: data.payer_phone || " ",
+        biller_share: principalPaid - agentCommission - 1.00,
+        agent_share: agentCommission,
+        aggregator_share: 1.00 + calc.penaltyFee,
+      }, tx);
+
+   
+      const newRemaining = Number(bill.remaining_bal) - principalPaid;
+      const isSettled = newRemaining <= 0;
+
+      await this.billRepo.updateStatus(
+        bill.id,
+        tx,
+        isSettled ? 'PAID' : 'PARTIALLY_PAID',
+        principalPaid,
+        isSettled ? new Date() : null
+      );
+
+      return {
+        message: isSettled ? "Full Payment Successful" : "Partial Payment Successful",
+        receipt: {
+          transaction_ref: transaction.transactionId,
+          customer: bill.customer.full_name,
+          amount_paid: `${paymentAmount} ${bill.currency}`,
+          remaining_balance: newRemaining,
+          status: isSettled ? "FULLY PAID" : "PARTIALLY PAID",
+          due_date: bill.due_date.toISOString().split('T')[0],
+          paymentDate: new Date().toISOString().split('T')[0],
+        },
+      };
+    });
+  } catch (error: any) {
+        
+   
+ await this.transactionRepo.create({
+            transactionId: `FAIL-${data.transactionId}`, // Unique ID for failure
+            idempotencyKey: `${data.idempotencyKey}-FAILED`, // Allows retry with original key
+            amount: 0,
+            total_amount: Number(data.amount || 0),
+            status: 'FAILED',
+            payment_method: data.payment_method,
+            agent_id: data.agent_id,
+            bill_id: data.bill_id,
+            payer_phone: data.payer_phone || " ",
+            agent_share: 0,
+            aggregator_share: 0,
+            biller_share: 0,
+            raw_response: error.message
+        });
+
+    throw error;
+  }
+}
   async getTransactionHistory(agent_id: string, filters: any) {
-    // Note: To keep consistency, it is better to move this to TransactionRepo
-    // For now, using direct call to preserve your exact filtering logic
+   
     return await prisma.transaction.findMany({
       where: {
         agent_id,
@@ -198,7 +200,7 @@ export class AgentService {
   }
 
   async getFullReport(filters: any) {
-    // Note: Kept original logic to ensure your dashboard doesn't break
+   
     const { agent_id, biller_id, status, fromDate, toDate } = filters;
 
     const whereClause: any = {
@@ -242,7 +244,7 @@ export class AgentService {
       prisma.transaction.count()
     ]);
     
-    // Destructure the Promise.all results from counts
+  
     const [userCount, agentCount, billerCount] = counts;
 
 

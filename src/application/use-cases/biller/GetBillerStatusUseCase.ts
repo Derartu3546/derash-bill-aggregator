@@ -5,7 +5,10 @@ export class GetBillerStatsUseCase {
     constructor(private billerRepo: any) { }
     
     async execute(biller_id: string, currentUser: any) {
-        if (currentUser.role !== 'SUPER_ADMIN' && currentUser.biller_id !== biller_id) {
+
+        const userBillerId = currentUser.biller_id || currentUser.billerId;
+        
+        if (currentUser.role !== 'SUPER_ADMIN' && userBillerId !== biller_id) {
             throw new Error('Unauthorized: You cannot acccess these financial insights');
         }
 

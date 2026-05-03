@@ -5,6 +5,7 @@ export interface ICustomerRepository {
     findByPhone(phone_no: string): Promise<Customer | null>;
     findByEmail(email: string): Promise<Customer | null>;
     findAll(): Promise<Customer[]>;
+    findFirst(): Promise<Customer | null>;
     count(): Promise<number>;
     create(data: any): Promise<Customer>;
     update(id: string, data: any): Promise<Customer>;

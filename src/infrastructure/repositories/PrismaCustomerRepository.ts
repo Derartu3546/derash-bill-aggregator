@@ -15,6 +15,7 @@ export class PrismaCustomerRepository implements ICustomerRepository {
         );
     }
 
+
     async findById(id: string): Promise<Customer | null> {
         const data = await prisma.customer.findUnique({ where: { id } });
         return data ? this.mapToEntity(data) : null;
@@ -29,6 +30,14 @@ export class PrismaCustomerRepository implements ICustomerRepository {
         const data = await prisma.customer.findUnique({ where: { email } });
         return data ? this.mapToEntity(data) : null;
     }
+
+    async findFirst(): Promise<Customer | null> {
+        const data = await prisma.customer.findFirst({
+            orderBy: { createdAt: 'asc' } // Gets the very first seeded customer
+        });
+        return data ? this.mapToEntity(data) : null;
+    }
+
 
     async create(data: any): Promise<Customer> {
         const created = await prisma.customer.create({

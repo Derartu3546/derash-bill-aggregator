@@ -1,6 +1,6 @@
 import { Biller } from '../entities/Biller.ts';
 
-// We define this interface here so your Use Cases know what to expect from the stats
+
 export interface BillerStats {
   totalBills: number;
   totalReceivableAmount: number;

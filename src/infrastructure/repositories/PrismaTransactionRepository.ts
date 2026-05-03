@@ -49,16 +49,17 @@ export class PrismaTransactionRepository implements ITransactionRepository {
                 transactionId: data.transactionId,
                 agentReference: data.agentReference,
                 idempotencyKey: data.idempotencyKey,
-                amount: data.amount,
-                biller_share: data.biller_share,
-                agent_share: data.agent_share,
-                aggregator_share: data.aggregator_share,
-                total_amount: data.total_amount,
-                status: data.status || 'INITIATED',
+                amount:  Number(data.amount),
+                total_amount: Number(data.total_amount),
+                biller_share: Number(data.biller_share || 0),
+                agent_share: Number(data.agent_share || 0),
+                aggregator_share: Number(data.aggregator_share || 0),
+                status: data.status,
                 payment_method: data.payment_method,
-                payer_phone: data.payer_phone,
+                payer_phone: data.payer_phone ?? null,
                 agent_id: data.agent_id,
-                bill_id: data.bill_id
+                bill_id: data.bill_id,
+                raw_response: data.raw_response
             }
         });
         return this.mapToEntity(created);

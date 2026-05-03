@@ -3,9 +3,7 @@ import { IAgentRepository } from '../../domain/repositories/IAgentRepository.ts'
 import { Agent } from '../../domain/entities/Agent.ts';
 
 export class PrismaAgentRepository implements IAgentRepository {
-  /**
-   * Private helper to convert Prisma database results into our Domain Entity.
-   */
+  
   private mapToEntity(data: any): Agent {
     return new Agent(
       data.id,

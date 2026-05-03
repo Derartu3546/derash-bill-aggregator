@@ -1,4 +1,4 @@
-import { prisma } from '../../infrastructure/database/prisma';
+import { prisma } from '../../infrastructure/database/prisma.ts';
 
 export class AuditService {
     static async log(params: {

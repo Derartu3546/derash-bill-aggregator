@@ -14,7 +14,9 @@ export const loginHandler = async (request: FastifyRequest, reply: FastifyReply)
 
     const token = await reply.jwtSign({ 
     userId: user.id, 
-    role: user.role 
+    role: user.role ,
+    biller_id: user.biller_id, 
+    agent_id: user.agent_id
   });
 
 
@@ -26,7 +28,7 @@ export const loginHandler = async (request: FastifyRequest, reply: FastifyReply)
     maxAge: 8 * 60 * 60 
   });
 
-    const responseData = {
+    const userData = {
       id: user.id,
       name: user.name,
       role: user.role,
@@ -38,13 +40,13 @@ export const loginHandler = async (request: FastifyRequest, reply: FastifyReply)
         name: user.agent.name
       } : null,
       biller: user.biller ? {
-        id: user.biller.id,
+        id: user.biller_id,
         name: user.biller.name
       } : null
     };
 
     // 5. Wrap EVERYTHING in the ApiResponse.success
-    return ApiResponse.success(responseData, 'Login successful');
+    return ApiResponse.success({ user: userData, token }, 'Login successful');
 
   } catch (error: any) {
     return reply.status(401).send(

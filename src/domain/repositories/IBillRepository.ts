@@ -2,7 +2,7 @@ import { Bill, BillStatus } from "../entities/Bill.ts";
 import { Biller } from '../entities/Biller.ts';
 import { Customer } from '../entities/Customer.ts';
 
-// This allows your Service to access bill.biller and bill.customer
+
 export type BillWithRelations = Bill & {
   biller: Biller;
   customer: Customer;
@@ -21,7 +21,7 @@ export interface IBillRepository {
 
   upsert(billData: any): Promise<void>;
 
-  // used by agents when checking unpaid bills
+ 
   findActiveBillsForAgent(bill_reference: string): Promise<Bill[]>;
 
   // update bill status during payment transaction
@@ -30,6 +30,7 @@ export interface IBillRepository {
     tx: any,
     status: string,
     amount_paid?: number,
+    paid_at?: Date | null
   ): Promise<Bill>;
 
   // lock bill during payment to avoid race conditions

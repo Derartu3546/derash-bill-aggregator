@@ -28,7 +28,7 @@ export class PrismaBillRepository implements IBillRepository {
       where: { id },
     });
     
-    // Updated: Use mapToEntity to keep logic consistent
+    
     return b ? this.mapToEntity(b) : null;
   }
 
@@ -46,7 +46,6 @@ export class PrismaBillRepository implements IBillRepository {
     });
     if (!data) return null;
 
-  // FIX: You must attach the relations to the entity
   const billEntity = this.mapToEntity(data);
   return Object.assign(billEntity, {
       biller: data.biller,
@@ -69,10 +68,10 @@ export class PrismaBillRepository implements IBillRepository {
     id: string, 
     tx: any): 
     Promise<BillWithRelations | null> {
-    // 1. Lock the row using raw SQL
+  
     await tx.$executeRaw`SELECT id FROM "Bill" WHERE id = ${id} FOR UPDATE`;
 
-    // 2. Fetch the full data including relations using the transaction client
+   
     const data = await tx.bill.findUnique({
         where: { id },
         include: { 
@@ -83,33 +82,45 @@ export class PrismaBillRepository implements IBillRepository {
 
     if (!data) return null;
 
-    // 3. Construct the BillWithRelations object
+   
     const billEntity = this.mapToEntity(data);
     
-    // We manually attach the relations to satisfy the type
+  
     return Object.assign(billEntity, {
-        biller: data.biller,   // This assumes your Biller entity matches the DB
+        biller: data.biller,  
         customer: data.customer
     }) as unknown as BillWithRelations;
 }
-  async updateStatus(
-    id: string,
-    tx: any,
-    status: BillStatus,
-    amount_paid?: number,
-  ): Promise<Bill> {
-    const updated = await tx.bill.update({
-      where: { id },
-      data: {
-        status,
-        amount_paid,
-        // Automatically calculate remaining balance if amount_paid is updated
-        // remaining_bal: amount_due - amount_paid (Logic depends on your schema defaults)
-      },
-    });
+ async updateStatus(
+  id: string,
+  tx: any,
+  status: BillStatus,
+  amount_paid?: number,
+  paid_at?: Date | null 
+): Promise<Bill> {
+  const client = tx || prisma;
+  const updated = await client.bill.update({
+    where: { id },
+    data: {
+      status,
+      
+      ...(amount_paid && {
+        remaining_bal: {
+          decrement: amount_paid
+        },
 
-    return this.mapToEntity(updated);
-  }
+        amount_paid: {
+          increment: amount_paid
+        }
+
+      }),
+     
+      paid_at: paid_at 
+    },
+  });
+
+  return this.mapToEntity(updated);
+}
 
   async upsert(data: any): Promise<void> {
     await prisma.bill.upsert({
@@ -119,18 +130,20 @@ export class PrismaBillRepository implements IBillRepository {
       update: {
         amount_due: data.amount_due,
         remaining_bal: data.remaining_bal,
+        due_date: new Date(data.due_date), 
+        period: data.period,
         status: data.status,
+        paid_at: data.paid_at,
       },
       create: {
-        id: data.id,
         bill_reference: data.bill_reference,
         amount_due: data.amount_due,
         amount_paid: data.amount_paid || 0,
         remaining_bal: data.remaining_bal,
         status: data.status,
-        // Fixed: Ensure dates are handled even if they come in as strings
+       
         due_date: new Date(data.due_date),
-        paid_at: data.paid_at ? new Date(data.paid_at) : new Date(), 
+        paid_at: data.paid_at,
         period: data.period,
         biller_id: data.biller_id,
         customer_id: data.customer_id,

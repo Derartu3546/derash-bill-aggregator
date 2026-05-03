@@ -24,7 +24,7 @@ export class Transaction {
         public readonly raw_response?: any
     ) {}
 
-    // Business Rule: Validate total equals sum of shares
+   
     isValidSplit(): boolean {
         return (this.biller_share + this.agent_share + this.aggregator_share) === this.amount;
     }
