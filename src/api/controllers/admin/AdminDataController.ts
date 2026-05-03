@@ -14,14 +14,14 @@ export class AdminDataController {
   private billerRepo: PrismaBillerRepository;
 
   constructor() {
-    // 1. Initialize Repositories
+  
     this.customerRepo = new PrismaCustomerRepository();
     this.agentRepo = new PrismaAgentRepository();
     this.billerRepo = new PrismaBillerRepository();
     const billRepo = new PrismaBillRepository();
     const transactionRepo = new PrismaTransactionRepository();
 
-    // 2. Inject Repositories into AgentService
+  
     this.agentService = new AgentService(
       this.agentRepo,
       billRepo,
@@ -66,7 +66,7 @@ export class AdminDataController {
     }
   };
 
-  // Changed from static to instance method to use repositories
+ 
   getUsers = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const users = await this.customerRepo.findAll(); 
@@ -78,7 +78,7 @@ export class AdminDataController {
 
   getAgents = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // Using the repo instead of direct prisma call
+   
       const agents = await this.agentRepo.findAllActive(); 
       return reply.send(agents);
     } catch (error: any) {

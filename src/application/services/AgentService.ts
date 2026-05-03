@@ -112,7 +112,7 @@ export class AgentService {
         idempotencyKey: data.idempotencyKey,
         amount: principalPaid,
         total_amount: paymentAmount,
-        status: 'SUCCESSFUL', // Created directly as SUCCESSFUL
+        status: 'SUCCESSFUL', 
         payment_method: data.payment_method,
         agent_id: data.agent_id,
         bill_id: data.bill_id,
@@ -151,8 +151,8 @@ export class AgentService {
         
    
  await this.transactionRepo.create({
-            transactionId: `FAIL-${data.transactionId}`, // Unique ID for failure
-            idempotencyKey: `${data.idempotencyKey}-FAILED`, // Allows retry with original key
+            transactionId: `FAIL-${data.transactionId}`, 
+            idempotencyKey: `${data.idempotencyKey}-FAILED`,
             amount: 0,
             total_amount: Number(data.amount || 0),
             status: 'FAILED',

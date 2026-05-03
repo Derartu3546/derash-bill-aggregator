@@ -45,7 +45,7 @@ export const loginHandler = async (request: FastifyRequest, reply: FastifyReply)
       } : null
     };
 
-    // 5. Wrap EVERYTHING in the ApiResponse.success
+  
     return ApiResponse.success({ user: userData, token }, 'Login successful');
 
   } catch (error: any) {

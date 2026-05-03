@@ -2,7 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../../../infrastructure/database/prisma.ts';
 import { AgentService } from '@/application/services/AgentService.ts';
 
-// Import your Prisma Repository implementations
+
 import { PrismaAgentRepository } from '../../../infrastructure/repositories/PrismaAgentRepository.ts';
 import { PrismaBillRepository } from '../../../infrastructure/repositories/PrismaBillRepository.ts';
 import { PrismaTransactionRepository } from '../../../infrastructure/repositories/PrismaTransactionRepository.ts';
@@ -21,7 +21,7 @@ export class BillController {
     const customerRepo = new PrismaCustomerRepository();
     const billerRepo = new PrismaBillerRepository();
 
-    // 2. Inject Repositories into AgentService
+    
     this.agentService = new AgentService(
       this.agentRepo,
       billRepo,
@@ -86,7 +86,7 @@ export class BillController {
       const agentCodeHeader = request.headers['x-agent-code'] as string;
       let agentId = (request as any).user?.id;
 
-      // Updated to use the Repo instead of direct prisma call
+      
       if (!agentId && agentCodeHeader) {
         const agent = await this.agentRepo.findByCode(agentCodeHeader);
         agentId = agent?.id;
@@ -99,7 +99,7 @@ export class BillController {
         });
       }
 
-      // We keep the dashboard aggregate logic here as it is very specific to this view
+      
       const [stats, statusCounts, recentTransactions] = await Promise.all([
         prisma.transaction.aggregate({
           where: { agent_id: agentId },

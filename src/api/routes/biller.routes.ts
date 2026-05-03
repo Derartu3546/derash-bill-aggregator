@@ -6,10 +6,9 @@ import { PrismaBillRepository } from "../../infrastructure/repositories/PrismaBi
 import { GetBillerStatsUseCase } from "../../application/use-cases/biller/GetBillerStatusUseCase.ts";
 import { prisma } from "../../infrastructure/database/prisma.ts";
 
-// Updated Hooks
+
 import { authorize } from "@/core/hooks/auth.hook.ts";
 
-// Validators & Utils
 import { CreateBillerSchema, IngestBillSchema } from "../../shared/validators/biller.validator.ts";
 import { parseCsv } from "../../shared/utils/csvParser.ts";
 import { ApiResponse } from "../../shared/utils/ApiResponse.ts";
@@ -24,13 +23,9 @@ const statsUseCase = new GetBillerStatsUseCase(billRepo);
 
 export async function billerRoutes(fastify: FastifyInstance) {
     
-    // Apply Global Protection
+   
     fastify.addHook('preHandler', authorize(['SUPER_ADMIN', 'BILLER_ADMIN', 'AGENT_USER']));
 
-    /**
-     * 1. Create Biller
-     * Full Path: POST /api/v1/biller/create
-     */
     fastify.post("/create", async (request, reply) => {
         const validatedData = CreateBillerSchema.parse(request.body); 
         const biller = await createBillerUC.execute(
@@ -40,10 +35,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
         return { status: "SUCCESS", biller };
     });
 
-    /**
-     * 2. Ingest Single Bill
-     * Full Path: POST /api/v1/biller/:billerId/bills
-     */
+
     fastify.post('/:billerId/bills', async (request, reply) => {
         try {
             const { billerId } = request.params as any;
@@ -62,10 +54,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
         }
     });
 
-    /**
-     * 3. CSV Upload
-     * Full Path: POST /api/v1/biller/:billerId/upload-bills
-     */
+   
     fastify.post('/upload/:billerId', async (request, reply) => {
         try {
             const { billerId } = request.params as any;
@@ -98,10 +87,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
         }
     });
 
-    /**
-     * 4. Biller Stats
-     * Full Path: GET /api/v1/biller/:billerId/stats
-     */
+    
     fastify.get('/:billerId/stats', async (request, reply) => {
         try {
             const { billerId } = request.params as any;
@@ -113,10 +99,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
         }
     });
 
-    /**
-     * 5. List All Billers
-     * Full Path: GET /api/v1/biller/list
-     */
+   
     fastify.get('/list', async (request, reply) => {
         try {
             const billers = await prisma.biller.findMany({
