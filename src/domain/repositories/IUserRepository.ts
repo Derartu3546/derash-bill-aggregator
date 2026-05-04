@@ -18,5 +18,7 @@ export interface IUserRepository {
     expiresAt: Date,
   ): Promise<RefreshToken>;
   completeOnboarding(userId: string, newPasswordHash: string): Promise<void>;
+  updateResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
+  findByResetToken(token: string): Promise<User | null>;
 }
 

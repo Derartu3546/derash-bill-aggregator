@@ -162,4 +162,24 @@ export class PrismaUserRepository implements IUserRepository {
       },
     });
   }
+
+  async updateResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        resetToken: token,
+        resetTokenExpires: expiresAt
+      },
+    });
+  }
+
+  async findByResetToken(token: string): Promise<User | null> {
+    const findResetbyToken =  await prisma.user.findFirst({
+      where: {
+        resetToken: token, 
+        resetTokenExpires: {gt: new Date()}
+      },
+    });
+    return this.toDomain(findResetbyToken);
+  }
 }

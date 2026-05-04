@@ -11,7 +11,9 @@ export type UserRole = 'SYSTEM_ADMIN' | 'BILLER_USER' | 'AGENT_USER';
      public readonly isDeleted: string,
      public readonly billerId?: string,
      public readonly agentId?: string,
-     public readonly mustChangePassword: boolean = true
+     public readonly mustChangePassword: boolean = true,
+     public readonly resetToken?: string,
+     public readonly resetTokenExpires?: Date
    ) {}
 
    // Business Rule: Can this use upload bills?

@@ -11,6 +11,7 @@ import { CreateAuditLogUseCase } from "../../application/use-cases/admin/CreateA
 import { PrismaAuditRepository } from "../../infrastructure/repositories/PrismaAuditRepository";
 import { email } from "zod";
 import { ChangePasswordUseCase } from "../../application/use-cases/auth/ChangePasswordUseCase";
+import { ResetPasswordUseCase } from "../../application/use-cases/auth/ResetPasswordUseCase";
 import { request } from "http";
 
 
@@ -22,6 +23,7 @@ const getCurrentUserUseCase = new GetCurrentUserUseCase(userRespo);
 const auditRepo = new PrismaAuditRepository();
 const createAuditUseCase = new CreateAuditLogUseCase(auditRepo);
 const changePasswordUseCase = new ChangePasswordUseCase(userRespo);
+const resetPasswordUseCase = new ResetPasswordUseCase(userRespo);
 
 export async function authRoutes(fastify: FastifyInstance) {
     fastify.post('/auth/register', {
@@ -84,7 +86,7 @@ export async function authRoutes(fastify: FastifyInstance) {
                     user: result.user
                 }, 'Password change required before accessing the system');
             }
-            
+
 
 
             const { accessToken, refreshToken } = result;
@@ -200,6 +202,17 @@ export async function authRoutes(fastify: FastifyInstance) {
                 status: 'FAILED',
                 message: err.name === 'JsonWebTokenError' ? 'Invalid or expired setup token' : err.message
             });
+        }
+    });
+
+    fastify.post("/auth/reset-password", async (request, reply) => {
+        const { token, newPassword } = request.body as any;
+
+        try {
+            await resetPasswordUseCase.execute(token, newPassword);
+            return { status: "SUCCESS", message: "Password reset successful. You can now login." };
+        } catch (e: any) {
+            return reply.status(400).send({ status: "FAILED" , message: e.message});
         }
     });
 }

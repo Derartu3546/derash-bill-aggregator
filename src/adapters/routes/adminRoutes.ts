@@ -1,4 +1,5 @@
 import fastify, { FastifyInstance } from "fastify";
+import crypto from 'crypto';
 import { authenticate } from "../hooks/auth.hook";
 import { PrismaAuditRepository } from "../../infrastructure/repositories/PrismaAuditRepository";
 import { CreateAuditLogUseCase } from "../../application/use-cases/admin/CreateAuditLogUseCase";
@@ -6,6 +7,7 @@ import { RegisterUserUseCase } from "../../application/use-cases/auth/RegisterUs
 import { PrismaUserRepository } from "../../infrastructure/repositories/PrismaUserRepository";
 import { PrismaAdminRepository } from "../../infrastructure/repositories/PrismaAdminRepository";
 import { GetAllUsersUseCase } from "../../application/use-cases/admin/GetAllUsersUseCase";
+import { request } from "http";
 
 const adminRepo = new PrismaAdminRepository();
 const userRespo = new PrismaUserRepository();
@@ -217,5 +219,33 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  fastify.post('/users/:id/reset-password', { preHandler: [authenticate] }, async (request, reply) => {
+    const { id } = request.params as any;
+    const requester = (request as any).user;
+
+    if (requester.role !== 'SYSTEM_ADMIN') {
+      return reply.status(403).send({ message: "Unauthorized" });
+    }
+
+    const resetToken = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await userRespo.updateResetToken(id, resetToken, expiresAt);
+
+    await createAuditUseCase.execute({
+      userId: requester.id,
+      action: "ADMIN_INITIATED_PASSWORD_RESET",
+      entityName: "User",
+      entityId: id,
+      status: "SUCCESS",
+    });
+    return {
+      status: "SUCCESS",
+      data: { resetToken },
+      message: "Give this token to the user. It expires in 1 hour.",
+    };
+  });
+
 }
 
