@@ -69,6 +69,7 @@ export class PrismaUserRepository implements IUserRepository {
         status: data.status,
         passwordHash: data.passwordHash,
         isDeleted: typeof data.isDeleted === 'boolean' ? data.isDeleted : undefined,
+        mustChangePassword: data.mustChangePassword
       },
     });
 
@@ -150,5 +151,15 @@ export class PrismaUserRepository implements IUserRepository {
 
   async revokeAllUserTokens(userId: string) {
     return prisma.refreshToken.deleteMany({ where: { userId } });
+  }
+
+  async completeOnboarding(userId: string, newPasswordHash: string): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: newPasswordHash,
+        mustChangePassword: false
+      },
+    });
   }
 }

@@ -17,8 +17,6 @@ export interface IUserRepository {
     token: string,
     expiresAt: Date,
   ): Promise<RefreshToken>;
-  // findRefreshToken(token: string): Promise<(RefreshToken & { user: User }) | null>;
-  //   deleteRefreshToken(token: string): Promise<RefreshToken>;
-  //     revokeAllUserTokens(userId: string): Promise<{count: number}>;
+  completeOnboarding(userId: string, newPasswordHash: string): Promise<void>;
 }
 

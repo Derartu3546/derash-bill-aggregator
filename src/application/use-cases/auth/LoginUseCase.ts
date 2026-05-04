@@ -34,10 +34,34 @@ export class LoginUseCase {
           }
         }
       
-        const hash = await this.useRepo.getHashByEmail(email);
+        // const hash = await this.useRepo.getHashByEmail(email);
         const isMatch = await bcrypt.compare(password,user.passwordHash);
-        if (!isMatch) throw new Error('Invalid email or password');
+      if (!isMatch) throw new Error('Invalid email or password');
+      if (user.mustChangePassword) {
+        const tempToken = jwt.sign(
+          {
+            id: user.id,
+            role: user.role,
+            onboarding: true
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: '10m' }
+        );
 
+        return {
+          mustChangePassword: true,
+          tempToken,
+          user: {
+            id: user.id,
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
+          },
+          message: 'Password change required before accessing the system'
+        };
+      }
+
+      
         const accessToken = jwt.sign({ id: user.id, role: user.role , billerId: user.billerId, agentId: user.agentId}, process.env.JWT_SECRET!, { expiresIn: '15m' });
         const refreshToken = crypto.randomBytes(40).toString('hex');
         const expiresAt = new Date();
@@ -45,7 +69,8 @@ export class LoginUseCase {
 
         await this.useRepo.saveRefreshToken(user.id, refreshToken, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
-        return {
+      return {
+          mustChangePassword:false,
           accessToken,
           refreshToken,
           user: {
@@ -53,23 +78,7 @@ export class LoginUseCase {
             email: user.email,
             fullName: user.fullName,
             role: user.role,
-            // mustChangePassword: user.mustChangePassword,
           },
         };
-
-        // // Generate Token
-        // const payload = {
-        //   sub: user.id,
-        //   role: user.role,
-        //   agentId: user.agentId,
-        //   billerId: user.billerId,
-        // };
-
-        // const token = jwt.sign(payload, process.env.JWT_SECRET!, {
-        //   expiresIn: "1h",
-        // });
-        // return {
-        //     token,
-        // }
     }
 }

@@ -8,9 +8,10 @@ export type UserRole = 'SYSTEM_ADMIN' | 'BILLER_USER' | 'AGENT_USER';
      public readonly fullName: string,
      public readonly status: string,
      public readonly passwordHash: string,
-    public readonly isDeleted: string,
-    public readonly billerId?: string,
-    public readonly agentId?: string,
+     public readonly isDeleted: string,
+     public readonly billerId?: string,
+     public readonly agentId?: string,
+     public readonly mustChangePassword: boolean = true
    ) {}
 
    // Business Rule: Can this use upload bills?

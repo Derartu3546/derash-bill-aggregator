@@ -1,6 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import jwt from "jsonwebtoken";
-import { any } from "zod";
 
 export async function authenticate(
   request: FastifyRequest,
@@ -15,12 +14,20 @@ export async function authenticate(
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-   (request as any).user = {
-      id: decoded.id,
-      role: decoded.role,
-      agentId: decoded.agentId,
-      billerId: decoded.billerId,
-    };
+
+    if (decoded.onboarding) {
+      return reply.status(403).send({
+        status: "FORBIDDEN",
+        message:'Access denied. You must change your password before using the system.'
+      });
+    }
+
+       (request as any).user = {
+         id: decoded.id,
+         role: decoded.role,
+         agentId: decoded.agentId,
+         billerId: decoded.billerId,
+       };
   } catch {
     return reply.status(401).send({ message: "Invalid or expired token" });
   }

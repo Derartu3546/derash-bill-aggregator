@@ -10,6 +10,8 @@ import { GetCurrentUserUseCase } from "../../application/use-cases/auth/GetCurre
 import { CreateAuditLogUseCase } from "../../application/use-cases/admin/CreateAuditLogUseCase";
 import { PrismaAuditRepository } from "../../infrastructure/repositories/PrismaAuditRepository";
 import { email } from "zod";
+import { ChangePasswordUseCase } from "../../application/use-cases/auth/ChangePasswordUseCase";
+import { request } from "http";
 
 
 
@@ -19,6 +21,7 @@ const loginUseCase = new LoginUseCase(userRespo);
 const getCurrentUserUseCase = new GetCurrentUserUseCase(userRespo);
 const auditRepo = new PrismaAuditRepository();
 const createAuditUseCase = new CreateAuditLogUseCase(auditRepo);
+const changePasswordUseCase = new ChangePasswordUseCase(userRespo);
 
 export async function authRoutes(fastify: FastifyInstance) {
     fastify.post('/auth/register', {
@@ -57,6 +60,11 @@ export async function authRoutes(fastify: FastifyInstance) {
         try {
             const { email, password } = request.body as any;
             const result = await loginUseCase.execute(email, password);
+            if (!result.user) {
+                throw new Error('Authenticated user data is missing');
+            }
+            
+
             await createAuditUseCase.execute({
               userId: result.user.id,
               userEmail: result.user.email,
@@ -69,7 +77,20 @@ export async function authRoutes(fastify: FastifyInstance) {
               status:'SUCCESS'
             });
 
-            const { accessToken, refreshToken, user } = result;
+            if (result.mustChangePassword) {
+                return ApiResponse.success({
+                    mustChangePassword: true,
+                    tempToken: result.tempToken,
+                    user: result.user
+                }, 'Password change required before accessing the system');
+            }
+            
+
+
+            const { accessToken, refreshToken } = result;
+            if (!accessToken || !refreshToken) {
+              throw new Error('Failed to generate authentication tokens');
+            }
 
             reply.setCookie("access_token", accessToken, {
               path: "/",
@@ -81,10 +102,11 @@ export async function authRoutes(fastify: FastifyInstance) {
               path: "/api/v1/auth/refresh",
               maxAge: 604800
             });
-            return ApiResponse.success({user}, 'Login successful');
+            return ApiResponse.success({ user: result.user }, 'Login successful');
         } catch (err: any) {
+            const body = request.body as any;
+            const emailToLog = body?.email || "Unknown";
             await createAuditUseCase.execute({
-              userEmail: email,
               action: "LOGIN_FAILED",
               entityName: "Auth",
               entityId: "N/A",
@@ -142,6 +164,42 @@ export async function authRoutes(fastify: FastifyInstance) {
             return ApiResponse.success({user});
         } catch (e: any) {
             return reply.status(401).send({ status: 'FAILED', message: e.message });
+        }
+    });
+
+    fastify.post("/auth/change-password", {
+      schema: {
+        body: {
+          type: "object",
+          required: ["newPassword", "token"],
+              properties: {
+                  newPassword: { type: 'string', minLength: 6 },
+                  token:{type:'string'}
+          }
+        },
+      },
+    }, async (request, reply) => {
+        try {
+            const { newPassword, token } = request.body as any;
+
+            const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+            await changePasswordUseCase.execute(decoded.id, newPassword);
+            await createAuditUseCase.execute({
+                userId: decoded.id,
+                action: "PASSWORD_CHANGED_ONBOARDING",
+                entityName: "User",
+                entityId: decoded.id,
+                status: 'SUCCESS',
+                ipAddress: request.ip,
+                description: "User completed first-time password change"
+            });
+            return ApiResponse.success(null, 'Password updated successfully. Please login with your new password.');
+        } catch (err: any) {
+            return reply.status(400).send({
+                status: 'FAILED',
+                message: err.name === 'JsonWebTokenError' ? 'Invalid or expired setup token' : err.message
+            });
         }
     });
 }

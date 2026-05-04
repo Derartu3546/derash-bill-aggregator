@@ -37,7 +37,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       if (requester.role !== "SYSTEM_ADMIN") {
         return reply
           .status(403)
-          .send({ message: "Only Admins can create users" });
+          .send({ message: "Only Derash Admins can create users" });
       }
 
       const { email, password, fullName, role, billerId, agentId } =
@@ -45,21 +45,50 @@ export async function adminRoutes(fastify: FastifyInstance) {
       if (role === "BILLER_USER" && !billerId) {
         return reply
           .status(400)
-          .send({ message: "agent ID is required for AGENT_USER" });
+          .send({ message: "Biller ID is required for for BILLER_USER" });
+      }
+      if (role === "AGENT_USER" && !agentId) {
+        return reply
+          .status(400)
+          .send({ message: "Agent ID is required for AGENT_USER" });
       }
       try {
-        const newUser = await registerUseCase.execute({
-          fullName,
-          email,
-          password,
-          role,
-          billerId,
-          agentId,
-        });
-        return { status: "SUCCESS", data: newUser };
-      } catch (e: any) {
-        return reply.status(400).send({ status: "FAILED", message: e.message });
-      }
+        const tempPassword = (request.body as any).password || Math.random().toString(36).slice(-10);
+          const newUser = await registerUseCase.execute({
+            fullName,
+            email,
+            password: tempPassword,
+            role,
+            billerId,
+            agentId,
+          });
+          await createAuditUseCase.execute({
+            userId: requester.id,
+            userEmail: requester.email,
+            action: "CREATE_USER",
+            entityName: "User",
+            entityId: newUser.id,
+            newValues: { email, role, billerId, agentId },
+            status: "SUCCESS",
+            ipAddress: request.ip,
+          });
+          return {
+            status: "SUCCESS",
+            data: {
+              id: newUser.id,
+              email: newUser.email,
+              fullName: newUser.fullName,
+              role: newUser.role,
+              temporaryPassword: tempPassword,
+            },
+            message:
+              "User created successfully. Provide the temporary password to the user.",
+          };
+        } catch (e: any) {
+          return reply
+            .status(400)
+            .send({ status: "FAILED", message: e.message });
+        }
     },
   );
 
@@ -85,7 +114,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const requester = (request as any).user;
 
       if (requester.role !== "SYSTEM_ADMIN") {
-        return reply.status(403).send({ message: "Access Denied" });
+        return reply
+          .status(403)
+          .send({ message: "Only Derash Admins can create users Denied" });
       }
       try {
         const users = await getAllUsersUseCase.execute();
@@ -158,6 +189,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ message: "User not found" });
         }
 
+        
         if (user.role === "SYSTEM_ADMIN" && user.id === requester.id) {
           return reply
             .status(403)
@@ -166,6 +198,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         const newStatus = user.status === "active" ? "disabled" : "active";
         const updatedUser = await userRespo.update(id, { status: newStatus }); 
+
+        await createAuditUseCase.execute({
+          userId: requester.id,
+          action: "TOGGLE_USER_STATUS",
+          entityName: "User",
+          entityId: id,
+          newValues: { status: newStatus },
+          ipAddress: request.ip,
+        });
 
         return { status: "SUCCESS", data: updatedUser };
       } catch (e: any) {
