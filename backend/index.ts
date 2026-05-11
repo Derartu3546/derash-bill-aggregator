@@ -1,14 +1,17 @@
 import Fastify from "fastify";
 import { authRoutes } from "./routes/auth.routes";
 import { billerRoutes } from "./routes/biller.routes";
-import { agentRoutes } from "./routes/agent.routes";
 import { z } from "zod";
 import { prisma } from "./config/prisma";
 import multipart from "@fastify/multipart";
 import cors from "@fastify/cors";
 import fastifyCookie from "@fastify/cookie";
 import { billRoutes } from "./routes/billRoutes";
-import { adminRoutes } from "./routes/adminRoutes";
+import { adminRoutes } from "./routes/routes";
+import { agentsRoutes } from "./routes/agent.routes";
+import { agentRoutes } from "./routes/routes";
+
+
 
 const fastify = Fastify({ logger: true });
 
@@ -34,9 +37,15 @@ fastify.register(multipart, {
 // Routes
 fastify.register(authRoutes, { prefix: "/api/v1" });
 fastify.register(billerRoutes, { prefix: "/api/v1" });
-fastify.register(agentRoutes, { prefix: "/api/v1" });
+fastify.register(agentsRoutes, { prefix: "/api/v1" });
 fastify.register(billRoutes, { prefix: "/api/v1" });
 fastify.register(adminRoutes, { prefix: "/api/v1/admin" });
+
+
+fastify.register(agentRoutes, { prefix: "/api/v1/agent" });
+
+
+
 
 // Health Check
 fastify.get("/health", async () => {

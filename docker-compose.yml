@@ -1,0 +1,19 @@
+services:
+  # PostgreSQL: The main relational database for financial records
+  db:
+    image: postgres:15-alpine
+    container_name: derash_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: derash_db
+    ports:
+      - "5432:5432"
+
+  # RabbitMQ: For background SMS/Email notifications
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: derash_queue
+    ports:
+      - "5672:5672"   # Messaging port
+      - "15672:15672" # Dashboard (User: guest, Pass: guest)

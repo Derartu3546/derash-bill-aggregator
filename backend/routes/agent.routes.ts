@@ -14,7 +14,7 @@ const createAgentUC = new CreateAgentUseCase(agentRepo);
 const createAuditUseCase = new CreateAuditLogUseCase(auditRepo);
 
 
-export async function agentRoutes(fastify: FastifyInstance){
+export async function agentsRoutes(fastify: FastifyInstance){
     // Create Agent 
     fastify.post(
         "/agents",
