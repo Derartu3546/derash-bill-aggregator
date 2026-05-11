@@ -18,7 +18,7 @@ const fastify = Fastify({ logger: true });
 
 // CORS
 fastify.register(cors, {
-  origin: "http://localhost:5173",
+  origin: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization"],
