@@ -1,0 +1,11 @@
+echo "node_modules/
+.env
+dist/
+*.log
+.DS_Store" > .gitignore
+
+node_modules
+# Keep environment variables out of version control
+.env
+
+/generated/prisma
