@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "prisma generate && tsc",
-    "start": "npx ts-node src/index.ts",
-    "dev": "nodemon --exec ts-node index.ts"
-  },
+  "test": "echo \"Error: no test specified\" && exit 1",
+  "build": "prisma generate && tsc",
+  "start": "node dist/index.js",
+  "dev": "nodemon --exec ts-node index.ts"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
