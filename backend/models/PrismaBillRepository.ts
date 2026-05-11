@@ -10,6 +10,7 @@ export class PrismaBillRepository implements IBillRepository {
       data.customerName,
       Number(data.amount),
       Number(data.amountPaid),
+      data.remainingBalance,
       data.dueDate,
       data.status as BillStatus,
       data.period,
@@ -68,12 +69,14 @@ export class PrismaBillRepository implements IBillRepository {
     tx: any,
     status: BillStatus,
     amountPaid?: number,
+    remainingBalance?:number
   ): Promise<Bill> {
     const updated = await tx.bill.update({
       where: { id },
       data: {
         status,
         amountPaid,
+        remainingBalance,
       },
     });
 
@@ -103,6 +106,7 @@ export class PrismaBillRepository implements IBillRepository {
         billReference: data.billReference,
         customerName: data.customerName,
         amount: data.amount,
+        remainingBalance: data.amount,
         amountPaid: data.amountPaid,
         dueDate: data.dueDate,
         status: data.status,
@@ -118,6 +122,7 @@ export class PrismaBillRepository implements IBillRepository {
       data: {
         billReference: billData.billReference,
         amount: billData.amount,
+        remainingBalance: billData.amount,
         period: billData.period,
         dueDate: billData.dueDate,
         customerName: billData.customerName,

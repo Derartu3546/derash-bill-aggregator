@@ -7,9 +7,9 @@ export class BillingEngine {
   static calculate(bill: any) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dueDate = new Date(bill.due_date);
-    const remainingDebt = Number(bill.remaining_bal);
-    const graceDays = bill.biller.grace_period || 0;
+    const dueDate = new Date(bill.dueDate);
+    const remainingDebt = Number(bill.remainingBalance);
+    const graceDays = bill.biller.gracePeriod || 0;
     
     const diffTime = today.getTime() - dueDate.getTime();
     const daysLate = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
@@ -19,8 +19,7 @@ export class BillingEngine {
     let blockReason = "";
 
     if (daysLate > graceDays && remainingDebt > 0) {
-      if (!bill.biller.charges_late_fee) {
-      
+      if (!bill.biller.chargesLateFee) {
         isBlocked = true;
         blockReason = `Service disconnected. Grace period of ${graceDays} days passed. Please contact provider.`;
       } else if (daysLate > this.MAX_PENALTY_DAYS) {
@@ -28,7 +27,6 @@ export class BillingEngine {
         isBlocked = true;
         blockReason = `Payment Blocked: Bill is ${daysLate} days late (Max: ${this.MAX_PENALTY_DAYS}).`;
       } else {
-       
         penaltyFee = daysLate * this.DAILY_PENALTY;
       }
     }

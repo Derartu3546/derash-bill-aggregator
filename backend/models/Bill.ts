@@ -9,6 +9,7 @@ export class Bill {
     public readonly customerName: string | null,
     public readonly amount: number,
     public readonly amountPaid: number,
+    public readonly remainingBalance: number,
     public readonly dueDate: Date,
     public readonly status: BillStatus,
     public readonly period: string,
