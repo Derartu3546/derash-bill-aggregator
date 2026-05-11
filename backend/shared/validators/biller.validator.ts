@@ -1,4 +1,4 @@
-import { refine, z } from 'zod';
+import {z } from 'zod';
 
 export const CreateBillerSchema = z.object({
     name: z.string().min(3, 'Name must be at least 3 characters'),
@@ -15,14 +15,14 @@ export const IngestBillSchema = z.array(
     customerName: z.string().optional(),
 
     amount: z.preprocess(
-      (val) => Number(val),
+      (val:any) => Number(val),
       z.number().positive("Amount must be greater than zero"),
     ),
 
     period: z.string().regex(/^\d{4}-\d{2}$/, "Period must be YYYY-MM"),
 
     dueDate: z.preprocess(
-      (val) => new Date(val as string),
+      (val:any) => new Date(val as string),
       z.date({ error: "Invalid dueDate format" }),
     ),
   }),
@@ -36,7 +36,7 @@ export const RegisterUserSchema = z.object({
     role: z.enum(['SYSTEM_ADMIN', 'BILLER_USER', 'AGENT_USER']),
     billerId: z.string().optional(),
     agentId: z.string().optional(),
-}).refine((data) => {
+}).refine((data:any) => {
     // RULE 1 if role is BILLER_USER , billerId is REQUIRED
     if (data.role === 'BILLER_USER' && !data.billerId) {
         return false;

@@ -9,7 +9,6 @@ import { authenticate } from "../middleware/auth.hook";
 import { GetCurrentUserUseCase } from "../services/auth/GetCurrentUserUseCase";
 import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
-import { email } from "zod";
 import { ChangePasswordUseCase } from "../services/auth/ChangePasswordUseCase";
 import { ResetPasswordUseCase } from "../services/auth/ResetPasswordUseCase";
 

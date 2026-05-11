@@ -46,7 +46,13 @@ fastify.register(adminRoutes, { prefix: "/api/v1/admin" });
 fastify.register(agentRoutes, { prefix: "/api/v1/agent" });
 
 
-
+fastify.get("/", async (request, reply) => {
+  return {
+    status: "online",
+    message: "Derash Bill Aggregator API is running!",
+    version: "1.0.0",
+  };
+});
 
 // Health Check
 fastify.get("/health", async () => {
