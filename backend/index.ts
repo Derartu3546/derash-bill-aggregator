@@ -1,7 +1,7 @@
 import Fastify from "fastify";
+import fastifyJwt from "@fastify/jwt";
 import { authRoutes } from "./routes/auth.routes";
 import { billerRoutes } from "./routes/biller.routes";
-import { z } from "zod";
 import { prisma } from "./config/prisma";
 import multipart from "@fastify/multipart";
 import cors from "@fastify/cors";
@@ -10,6 +10,7 @@ import { billRoutes } from "./routes/billRoutes";
 import { adminRoutes } from "./routes/routes";
 import { agentsRoutes } from "./routes/agent.routes";
 import { agentRoutes } from "./routes/routes";
+import { z } from "zod";
 
 
 
@@ -57,16 +58,19 @@ fastify.get("/health", async () => {
 
 // Error handler
 fastify.setErrorHandler((error: unknown, request, reply) => {
+  // 1. Handle Zod Errors
   if (error instanceof z.ZodError) {
+    const zodError = error as z.ZodError; // explicit local assignment
     return reply.status(400).send({
       status: "VALIDATION_ERROR",
-      errors: error.issues.map((e) => ({
+      errors: zodError.issues.map((e:z.ZodIssue) => ({
         field: e.path.join("."),
         message: e.message,
       })),
     });
   }
 
+  // 2. Handle standard Error objects
   if (error instanceof Error) {
     return reply.status(500).send({
       status: "ERROR",
@@ -74,12 +78,13 @@ fastify.setErrorHandler((error: unknown, request, reply) => {
     });
   }
 
-  const errorMessage = error instanceof Object && "message" in error ? String(error.message) : "Unknown error";
+  // 3. Fallback for truly unknown types (strings, null, etc.)
   return reply.status(500).send({
     status: "ERROR",
-    message: errorMessage,
+    message: typeof error === "string" ? error : "An unexpected error occurred",
   });
 });
+
 
 // Start server
 const start = async () => {

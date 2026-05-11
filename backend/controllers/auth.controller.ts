@@ -1,6 +1,9 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import bcrypt from "bcrypt";
 import { prisma } from "../config/prisma";
+import "@fastify/jwt";
+import "@fastify/cookie";
+
 
 export const loginHandler = async (
   request: FastifyRequest,
@@ -29,10 +32,11 @@ export const loginHandler = async (
   }
 
   // 4. Generate JWT
-  const token = await reply.jwtSign({
+  const token = await (reply as any).jwtSign({
     userId: user.id,
     role: user.role,
   });
+
 
   // 5. Set Cookie
   reply.setCookie("token", token, {
@@ -48,7 +52,7 @@ export const loginHandler = async (
     message: "Login successful",
     user: {
       id: user.id,
-      name: user.name,
+      name: user.fullName,
       role: user.role,
 
       // FIX: api_key -> apiKey (to match Unified Schema)
