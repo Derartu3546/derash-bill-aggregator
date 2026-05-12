@@ -7,7 +7,7 @@ export class AgentService {
     try {
       console.log(`Inquiry Started: Ref=${billReference}, Agent=${agentCode}`);
 
-      // Updated: 'code' is correct, but let's ensure we use the right variable names
+      
       const agent = await prisma.agent.findUnique({
         where: { code: agentCode },
       });
@@ -15,10 +15,8 @@ export class AgentService {
         throw new Error("Invalid Agent Code");
       }
 
-      // Updated: bill_reference -> billReference
-      // Change findUnique to findFirst
       const bill = await prisma.bill.findFirst({
-        where: { billReference: billReference }, // now this works
+        where: { billReference: billReference }, 
         include: { biller: true, customer: true },
       });
 

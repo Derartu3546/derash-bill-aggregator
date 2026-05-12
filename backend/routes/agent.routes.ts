@@ -25,20 +25,7 @@ export async function agentsRoutes(fastify: FastifyInstance){
             validateData,
             (request as any).user.role,
             );
-            // await createAuditUseCase.execute({
-            //   userId: request.user.id,
-            //   userEmail: request.user.email,
-            //   action: "CREATE_AGENT",
-            //   entityName: "Agent",
-            //   entityId: agent.id,
-            //   newValues: {
-            //     agentName: agent.fullName,
-            //     agentCode: agent.agentCode,
-            //     location: agent.location,
-            //   },
-            //   ipAddress: request.ip,
-            //   status: "SUCCESS",
-            // });
+
         return { status: 'SUCCESS', agent };
         });
     fastify.get("/agents", { preHandler: [authenticate] }, async (request, reply) => {

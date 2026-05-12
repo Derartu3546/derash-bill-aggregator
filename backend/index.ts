@@ -1,5 +1,5 @@
 import Fastify from "fastify";
-import fastifyJwt from "@fastify/jwt";
+import jwt from '@fastify/jwt';
 import { authRoutes } from "./routes/auth.routes";
 import { billerRoutes } from "./routes/biller.routes";
 import { prisma } from "./config/prisma";
@@ -14,7 +14,12 @@ import { z } from "zod";
 
 
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({
+  logger: {
+    level: "info",
+    file: "./logs/app.log",
+  },
+});
 
 // CORS
 fastify.register(cors, {
@@ -92,19 +97,7 @@ fastify.setErrorHandler((error: unknown, request, reply) => {
 });
 
 
-// Start server
-const start = async () => {
-  try {
-    await fastify.listen({
-      port: Number(process.env.PORT) || 5000,
-      host: "0.0.0.0",
-    });
-    console.log("Derash Server running at http://localhost:5000");
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
+
 
 // Graceful shutdown
 const shutdown = async (signal: string) => {
@@ -118,4 +111,22 @@ const shutdown = async (signal: string) => {
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-start();
+// Export fastify for testing
+export { fastify };
+
+// Start server ONLY if not in a test environment
+if (process.env.NODE_ENV !== 'test') {
+  const start = async () => {
+    try {
+      await fastify.listen({
+        port: Number(process.env.PORT) || 5000,
+        host: "0.0.0.0",
+      });
+      console.log("Derash Server running at http://localhost:5000");
+    } catch (err) {
+      fastify.log.error(err);
+      process.exit(1);
+    }
+  };
+  start();
+}

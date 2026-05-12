@@ -5,6 +5,20 @@ export class BillingEngine {
   static MAX_PENALTY_DAYS = 15;
 
   static calculate(bill: any) {
+    if (bill.status === "BLOCKED") {
+      return {
+        effectiveStatus: "BLOCKED",
+        daysLate: 0,
+        penaltyFee: 0,
+        totalRequired: Number(bill.remainingBalance),
+        remainingDebt: Number(bill.remainingBalance),
+        isWithinGracePeriod: false,
+        graceDaysRemaining: 0,
+        isBlocked: true,
+        blockReason:
+          "This bill has been manually blocked by the administrator.",
+      };
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dueDate = new Date(bill.dueDate);

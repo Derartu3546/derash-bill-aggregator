@@ -8,7 +8,7 @@ export class AdminDataController {
   // Changed to instance method for consistency
   getAdminReport = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // 1. Destructure her original query names
+      
       const { agent_id, biller_id, fromDate, toDate } = request.query as {
         agent_id?: string;
         biller_id?: string;
@@ -16,7 +16,7 @@ export class AdminDataController {
         toDate?: string;
       };
 
-      // 2. Pass them into the service using the names the Service expects
+      //  Pass  into the service using the names the Service expects
       const [report, summary] = await Promise.all([
         this.agentService.getFullReport({
           agentId: agent_id, // Map snake_case to camelCase
@@ -42,7 +42,7 @@ export class AdminDataController {
       });
     }
   };
-  // Removed 'static' so you can use these in a single router instance
+  
   getUsers = async (request: FastifyRequest, reply: FastifyReply) => {
     const users = await prisma.customer.findMany({
       orderBy: { createdAt: "desc" },
