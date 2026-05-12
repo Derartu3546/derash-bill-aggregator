@@ -133,7 +133,7 @@ export class PrismaBillRepository implements IBillRepository {
         due_date: new Date(data.due_date), 
         period: data.period,
         status: data.status,
-        paid_at: data.paid_at,
+       ...(data.paid_at !== undefined && { paid_at: data.paid_at }),
       },
       create: {
         bill_reference: data.bill_reference,
@@ -145,8 +145,13 @@ export class PrismaBillRepository implements IBillRepository {
         due_date: new Date(data.due_date),
         paid_at: data.paid_at,
         period: data.period,
-        biller_id: data.biller_id,
-        customer_id: data.customer_id,
+        biller:{
+          connect: { id: data.biller_id }
+        },
+        customer:{
+          connect: { id: data.customer_id }
+        }
+       
       },
     });
   }
