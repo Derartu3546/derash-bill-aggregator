@@ -67,6 +67,7 @@ export class LoginUseCase {
     const accessToken = jwt.sign(
       {
         id: user.id,
+        email: user.email,
         role: user.role,
         billerId: user.billerId,
         agentId: user.agentId,

@@ -1,6 +1,7 @@
 import request from "supertest";
 import { fastify } from "../../index";
 
+
 describe("Payment Integration Flow", () => {
   beforeAll(async () => {
     await fastify.ready();
@@ -24,9 +25,11 @@ describe("Payment Integration Flow", () => {
         agentCode: "AGENT01",
       });
 
-    // It's a 404 because the record doesn't exist in the DB
+    
     expect(response.status).toBe(404);
   });
+
+    
 
   it("should reject unauthenticated payment attempts with 401", async () => {
     const response = await request(fastify.server)
@@ -41,6 +44,7 @@ describe("Payment Integration Flow", () => {
     // Your middleware is correctly returning 401!
     expect(response.status).toBe(401);
   });
+    
 
   it("should block admin reports with 403 when secret is missing", async () => {
     const response = await request(fastify.server).get(

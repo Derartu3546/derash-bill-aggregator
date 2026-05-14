@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import jwt from "jsonwebtoken";
+import { email } from "zod/mini";
 
 export async function authenticate(
   request: FastifyRequest,
@@ -24,6 +25,7 @@ export async function authenticate(
 
        (request as any).user = {
          id: decoded.id,
+         email: decoded.email,
          role: decoded.role,
          agentId: decoded.agentId,
          billerId: decoded.billerId,

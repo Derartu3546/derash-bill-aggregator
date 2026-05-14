@@ -183,4 +183,16 @@ export class PrismaUserRepository implements IUserRepository {
     });
     return this.toDomain(findResetbyToken);
   }
+
+  async updateUserSettings(userId: string, data: any): Promise<any> {
+    return await prisma.userSettings.upsert({
+      where: { userId },
+      update: data,
+      create: { userId, ...data },
+    });
+  }
+
+  async getUserSettings(userId: string): Promise<any> {
+    return await prisma.userSettings.findUnique({where:{userId}})
+  }
 }

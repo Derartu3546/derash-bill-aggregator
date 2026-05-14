@@ -20,5 +20,7 @@ export interface IUserRepository {
   completeOnboarding(userId: string, newPasswordHash: string): Promise<void>;
   updateResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
   findByResetToken(token: string): Promise<User | null>;
+  updateUserSettings(userId: string, data: any): Promise<any>;
+  getUserSettings(userId: string): Promise<any>;
 }
 

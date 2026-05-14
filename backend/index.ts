@@ -10,6 +10,7 @@ import { billRoutes } from "./routes/billRoutes";
 import { adminRoutes } from "./routes/routes";
 import { agentsRoutes } from "./routes/agent.routes";
 import { agentRoutes } from "./routes/routes";
+import { userRoutes } from "./routes/user.routes";
 import { z } from "zod";
 
 
@@ -49,6 +50,7 @@ fastify.register(adminRoutes, { prefix: "/api/v1/admin" });
 
 
 fastify.register(agentRoutes, { prefix: "/api/v1/agent" });
+fastify.register(userRoutes, { prefix: "/api/v1/user" });
 
 
 fastify.get("/", async (request, reply) => {
