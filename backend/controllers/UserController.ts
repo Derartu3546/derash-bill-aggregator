@@ -4,7 +4,7 @@ import { PrismaUserRepository } from "../models/PrismaUserRepository";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
 import { updateSettingsSchema } from "../shared/validators/userSetting.validator";
 import { GetSettingUseCase } from "../services/user/GetSettingsUseCase";
-import { request } from "axios";
+
 
 const userRepo = new PrismaUserRepository();
 const auditRepo = new PrismaAuditRepository()
