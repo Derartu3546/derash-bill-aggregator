@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import { prisma } from "../config/prisma";
 import "@fastify/jwt";
 import "@fastify/cookie";
+import crypto from 'crypto';
 
 
 export const loginHandler = async (
@@ -10,7 +11,16 @@ export const loginHandler = async (
   reply: FastifyReply,
 ) => {
   const { email, password } = request.body as any;
+  console.log("--- DEBUG LOGIN ---");
+  console.log("Raw IP:", request.ip);
+  console.log("Raw UA:", request.headers["user-agent"]);
+  console.log("-------------------");
 
+  const meta = {
+    userAgent: request.headers["user-agent"] || "Unknown Browser",
+    // If request.ip is undefined, use the loopback address
+    ipAddress: request.ip || "127.0.0.1",
+  };
   // 1. Fetch user with relations
   const user = await prisma.user.findUnique({
     where: { email },
@@ -37,6 +47,18 @@ export const loginHandler = async (
     role: user.role,
   });
 
+  const refreshToken = crypto.randomBytes(40).toString("hex");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); 
+
+  await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      token: refreshToken,
+      expiresAt: expiresAt,
+      userAgent: meta.userAgent, 
+      ipAddress: meta.ipAddress, 
+    },
+  });
 
   // 5. Set Cookie
   reply.setCookie("token", token, {
@@ -50,6 +72,7 @@ export const loginHandler = async (
   // 6. Return Unified Data
   return reply.send({
     message: "Login successful",
+    refreshToken,
     user: {
       id: user.id,
       name: user.fullName,
@@ -85,7 +108,7 @@ export async function logoutHandler(
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      expires: new Date(0), // Instantly expires the cookie
+      expires: new Date(0),
     })
     .send({ message: "Logged out successfully" });
 }

@@ -14,6 +14,7 @@ import { ResetPasswordUseCase } from "../services/auth/ResetPasswordUseCase";
 
 
 
+
 const userRespo = new PrismaUserRepository();
 const registerUseCase = new RegisterUserUseCase(userRespo);
 const loginUseCase = new LoginUseCase(userRespo);
@@ -59,7 +60,12 @@ export async function authRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
         try {
             const { email, password } = request.body as any;
-            const result = await loginUseCase.execute(email, password);
+            
+            const meta = {
+              userAgent: request.headers["user-agent"] || "Unknown Device",
+              ipAddress: request.ip || "127.0.0.1",
+            };
+            const result = await loginUseCase.execute(email, password, meta);
             if (!result.user) {
                 throw new Error('Authenticated user data is missing');
             }
@@ -140,7 +146,11 @@ export async function authRoutes(fastify: FastifyInstance) {
         const newAccessToken = jwt.sign({ id: savedToken.user.id, role: savedToken.user.role }, process.env.JWT_SECRET!, { expiresIn: '15m' });
         const newRefreshToken = crypto.randomBytes(40).toString('hex');
 
-        await userRespo.saveRefreshToken(savedToken.user.id, newRefreshToken, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+        await userRespo.saveRefreshToken(savedToken.user.id, 
+    newRefreshToken, 
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    request.headers["user-agent"], // Capture current UA
+    request.ip);
 
         reply.setCookie("access_token", newAccessToken, {
             path: "/",

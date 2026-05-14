@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import jwt from "jsonwebtoken";
-import { email } from "zod/mini";
+import { prisma } from '../config/prisma';
 
 export async function authenticate(
   request: FastifyRequest,
@@ -23,6 +23,37 @@ export async function authenticate(
       });
     }
 
+    const liveUser = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        isActive: true,
+        isDeleted: true,
+        billerId: true,
+        agentId: true,
+        biller: { select: { isDeleted: true } },
+        agent: { select: { isDeleted: true } }
+      }
+    });
+
+    if (!liveUser || !liveUser.isActive || liveUser.isDeleted) {
+      return reply.status(403).send({
+        status: "FORBIDDEN",
+        message:
+          "Your account has been deactivated or removed. Please contact an administrator.",
+      });
+    }
+    if (liveUser.billerId && (!liveUser.biller || liveUser.biller.isDeleted)) {
+  return reply.status(403).send({
+    status: "FORBIDDEN",
+    message: "Your organization account has been suspended.",
+  });
+    }
+    if (liveUser.agentId && (!liveUser.agent || liveUser.agent.isDeleted)) {
+      return reply.status(403).send({
+        status: "FORBIDDEN",
+        message: "Your agent terminal has been deactivated.",
+      });
+    }
        (request as any).user = {
          id: decoded.id,
          email: decoded.email,

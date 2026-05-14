@@ -7,7 +7,11 @@ import crypto from "crypto";
 export class LoginUseCase {
   constructor(private useRepo: IUserRepository) {}
 
-  async execute(email: string, password: string) {
+  async execute(
+    email: string,
+    password: string,
+    meta?: { userAgent?: string; ipAddress?: string },
+  ) {
     //find user
     const user = await prisma.user.findUnique({
       where: { email },
@@ -83,6 +87,8 @@ export class LoginUseCase {
       user.id,
       refreshToken,
       new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      meta?.userAgent, 
+      meta?.ipAddress,
     );
 
     return {

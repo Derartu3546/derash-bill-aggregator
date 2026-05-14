@@ -20,6 +20,7 @@ const fastify = Fastify({
     level: "info",
     file: "./logs/app.log",
   },
+  trustProxy: true,
 });
 
 // CORS

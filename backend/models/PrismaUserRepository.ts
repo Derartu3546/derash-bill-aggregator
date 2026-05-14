@@ -42,8 +42,9 @@ export class PrismaUserRepository implements IUserRepository {
     const u = await prisma.user.findUnique({
       where: {
         email,
-      // isDeleted: false
-     } });
+        // isDeleted: false
+      },
+    });
     if (!u) return null;
     return this.toDomain(u);
   }
@@ -53,8 +54,9 @@ export class PrismaUserRepository implements IUserRepository {
     const u = await prisma.user.findUnique({
       where: {
         id,
-      isDeleted: false
-    } });
+        isDeleted: false,
+      },
+    });
     if (!u) return null;
     return this.toDomain(u);
   }
@@ -69,8 +71,9 @@ export class PrismaUserRepository implements IUserRepository {
         role: data.role,
         status: data.status,
         passwordHash: data.passwordHash,
-        isDeleted: typeof data.isDeleted === 'boolean' ? data.isDeleted : undefined,
-        mustChangePassword: data.mustChangePassword
+        isDeleted:
+          typeof data.isDeleted === "boolean" ? data.isDeleted : undefined,
+        mustChangePassword: data.mustChangePassword,
       },
     });
 
@@ -79,7 +82,7 @@ export class PrismaUserRepository implements IUserRepository {
 
   // Delete user
   async delete(id: string, data: Partial<User>): Promise<User> {
-    const deleted =  await prisma.user.update({
+    const deleted = await prisma.user.update({
       where: { id },
       data: {
         isDeleted: true,
@@ -93,7 +96,7 @@ export class PrismaUserRepository implements IUserRepository {
   async findAll(): Promise<User[]> {
     const users = await prisma.user.findMany({
       where: {
-        isDeleted: false
+        isDeleted: false,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -133,9 +136,12 @@ export class PrismaUserRepository implements IUserRepository {
     userId: string,
     token: string,
     expiresAt: Date,
+    userAgent?: string,
+    ipAddress?: string,
   ): Promise<RefreshToken> {
     return prisma.refreshToken.create({
-      data: { userId, token, expiresAt },
+      data: { userId, token, expiresAt ,userAgent, 
+      ipAddress},
     });
   }
 
@@ -154,31 +160,38 @@ export class PrismaUserRepository implements IUserRepository {
     return prisma.refreshToken.deleteMany({ where: { userId } });
   }
 
-  async completeOnboarding(userId: string, newPasswordHash: string): Promise<void> {
+  async completeOnboarding(
+    userId: string,
+    newPasswordHash: string,
+  ): Promise<void> {
     await prisma.user.update({
       where: { id: userId },
       data: {
         passwordHash: newPasswordHash,
-        mustChangePassword: false
+        mustChangePassword: false,
       },
     });
   }
 
-  async updateResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+  async updateResetToken(
+    userId: string,
+    token: string,
+    expiresAt: Date,
+  ): Promise<void> {
     await prisma.user.update({
       where: { id: userId },
       data: {
         resetToken: token,
-        resetTokenExpires: expiresAt
+        resetTokenExpires: expiresAt,
       },
     });
   }
 
   async findByResetToken(token: string): Promise<User | null> {
-    const findResetbyToken =  await prisma.user.findFirst({
+    const findResetbyToken = await prisma.user.findFirst({
       where: {
-        resetToken: token, 
-        resetTokenExpires: {gt: new Date()}
+        resetToken: token,
+        resetTokenExpires: { gt: new Date() },
       },
     });
     return this.toDomain(findResetbyToken);
@@ -193,6 +206,6 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   async getUserSettings(userId: string): Promise<any> {
-    return await prisma.userSettings.findUnique({where:{userId}})
+    return await prisma.userSettings.findUnique({ where: { userId } });
   }
 }
