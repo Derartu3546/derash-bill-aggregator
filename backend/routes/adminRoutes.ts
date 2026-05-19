@@ -7,7 +7,7 @@ import { RegisterUserUseCase } from "../services/auth/RegisterUserUseCase";
 import { PrismaUserRepository } from "../models/PrismaUserRepository";
 import { PrismaAdminRepository } from "../models/PrismaAdminRepository";
 import { GetAllUsersUseCase } from "../services/admin/GetAllUsersUseCase";
-
+import { NotificationController } from "../controllers/admin/NotificationController";
 
 const adminRepo = new PrismaAdminRepository();
 const userRespo = new PrismaUserRepository();
@@ -246,6 +246,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       message: "Give this token to the user. It expires in 1 hour.",
     };
   });
-
+  fastify.get("/notifications", NotificationController.getMyNotifications);
+  fastify.patch("/notifications/:id/read", NotificationController.markAsRead);
 }
 

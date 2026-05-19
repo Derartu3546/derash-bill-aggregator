@@ -85,6 +85,7 @@ model User {
   agentEvents        AgentEvent[]
   refreshTokens      RefreshToken[]
   auditLogs          AuditLog[]
+  notifications      Notification[]
   mustChangePassword Boolean        @default(true)
   resetToken         String?        @unique
   resetTokenExpires  DateTime?
@@ -94,6 +95,18 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@index([email])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String   // The ID of the Admin who should receive it
+  title       String
+  message     String
+  type        String   // e.g., "BILL_UPLOADED", "SYSTEM_ALERT"
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 model Biller {

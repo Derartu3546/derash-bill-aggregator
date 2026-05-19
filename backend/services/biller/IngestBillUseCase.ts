@@ -1,5 +1,6 @@
 import { IBillRepository } from "../../models/IBillRepository";
 import { prisma } from "../../config/prisma";
+import { NotificationService } from "../../shared/NotificationService";
 
 interface IngestionFallbacks {
   period?: string;
@@ -82,6 +83,21 @@ export class IngestBillUseCase {
         }
       }
     });
+
+    if (report.success > 0) {
+      try {
+        await NotificationService.sendToAdmins(
+          "New Bills Ingested",
+          `Biller ${billerId} uploaded ${report.success} new bills successfully.`,
+          "BILL_UPLOADED"
+        )
+      } catch (notifyError) {
+        console.error(
+          "Notification failed to send, but bills were saved:",
+          notifyError,
+        );
+      }
+    }
 
     return report;
   }

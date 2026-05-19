@@ -4,6 +4,7 @@ import { auditLogger } from "../middleware/auditMiddleware";
 import { validateApiKey } from "../middleware/authMiddleware";
 import { validateAdminKey } from "../middleware/adminAuthMiddleware";
 import { AdminDataController } from "../controllers/admin/AdminDataController";
+import { NotificationController } from "../controllers/admin/NotificationController";
 
 import crypto from "crypto";
 import { authenticate } from "../middleware/auth.hook";
@@ -40,14 +41,35 @@ export async function agentRoutes(fastify: FastifyInstance) {
 export async function adminRoutes(fastify: FastifyInstance) {
   const adminDataController = new AdminDataController();
 
-  fastify.addHook("preHandler", validateAdminKey);
+  // fastify.addHook("preHandler", validateAdminKey);
   fastify.addHook("preHandler", auditLogger);
 
-  fastify.get("/global-report", adminDataController.getAdminReport);
+  fastify.get("/global-report",{preHandler:[validateAdminKey]} ,adminDataController.getAdminReport);
 
   fastify.get("/users", adminDataController.getUsers);
   fastify.get("/agents", adminDataController.getAgents);
   fastify.get("/billers", adminDataController.getBillers);
+  fastify.get(
+    "/notifications",
+    {
+      preHandler: [
+        authenticate,
+        async (req, reply) => {
+          if ((req as any).user.role !== "SYSTEM_ADMIN") {
+            return reply
+              .status(403)
+              .send({ message: "Access Denied: Admins only." });
+          }
+        },
+      ],
+    },
+    NotificationController.getMyNotifications,
+  );
+  fastify.patch(
+    "/notifications/:id/read",
+    { preHandler: [authenticate] },
+    NotificationController.markAsRead,
+  );
   fastify.get(
     "/logs",
     { preHandler: [authenticate] },
