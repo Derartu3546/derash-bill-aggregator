@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { SessionManagementUseCase } from "../services/auth/SessionManagementUseCase";
-import {prisma} from '../config/prisma'
-import { AuditService } from "../services/AuditService";
+import { SessionManagementUseCase } from "../../services/auth/SessionManagementUseCase";
+import {prisma} from '../../config/prisma'
+import { AuditService } from "../../services/AuditService";
 
 
 

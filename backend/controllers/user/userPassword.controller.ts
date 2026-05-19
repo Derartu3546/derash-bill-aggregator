@@ -1,8 +1,8 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { UpdatePasswordUseCase } from "../services/auth/UpdatePasswordUseCase";
-import { updatePasswordSchema } from "../shared/validators/password.validator";
-import { ApiResponse } from "../shared/utils/ApiResponse";
-import { AuditService } from "../services/AuditService";
+import { UpdatePasswordUseCase } from "../../services/auth/UpdatePasswordUseCase";
+import { updatePasswordSchema } from "../../shared/validators/password.validator";
+import { ApiResponse } from "../../shared/utils/ApiResponse";
+import { AuditService } from "../../services/AuditService";
 
 const updatePasswordUseCase = new UpdatePasswordUseCase();
 

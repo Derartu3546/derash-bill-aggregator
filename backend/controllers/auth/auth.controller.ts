@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import bcrypt from "bcrypt";
-import { prisma } from "../config/prisma";
+import {prisma} from '../../config/prisma'
 import "@fastify/jwt";
 import "@fastify/cookie";
 import crypto from 'crypto';

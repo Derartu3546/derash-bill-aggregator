@@ -1,11 +1,11 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { UpdateSettingsUseCase } from "../services/user/UpdateSettingsUseCase";
-import { PrismaUserRepository } from "../models/PrismaUserRepository";
-import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
-import { updateSettingsSchema } from "../shared/validators/userSetting.validator";
-import { GetSettingUseCase } from "../services/user/GetSettingsUseCase";
-import { prisma } from "../config/prisma";
-import { AuditService } from "../services/AuditService";
+import { UpdateSettingsUseCase } from "../../services/user/UpdateSettingsUseCase";
+import { PrismaUserRepository } from "../../models/PrismaUserRepository";
+import { PrismaAuditRepository } from "../../models/PrismaAuditRepository";
+import { updateSettingsSchema } from "../../shared/validators/userSetting.validator";
+import { GetSettingUseCase } from "../../services/user/GetSettingsUseCase";
+import { prisma } from "../../config/prisma";
+import { AuditService } from "../../services/AuditService";
 
 const userRepo = new PrismaUserRepository();
 const auditRepo = new PrismaAuditRepository();
