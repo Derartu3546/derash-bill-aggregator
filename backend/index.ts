@@ -18,7 +18,6 @@ import { z } from "zod";
 const fastify = Fastify({
   logger: {
     level: "info",
-    file: "./logs/app.log",
   },
   trustProxy: true,
 });
