@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { SessionManagementUseCase } from "../services/auth/SessionManagementUseCase";
 import {prisma} from '../config/prisma'
+import { AuditService } from "../services/AuditService";
 
 
 
@@ -39,7 +40,11 @@ export const revokeSessionHandler = async (request: FastifyRequest, reply: Fasti
 
 export const revokeAllOtherSessionsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-        const userId = (request.user as any).id;
+        const user = request.user as any;
+        const userId = user.id;
+        const email = user.email;
+        const ip = request.ip;
+        const userAgent = request.headers["user-agent"];
         // Get the current refresh token string from cookies
         const currentRefreshToken = request.cookies.refresh_token;
         
@@ -58,7 +63,15 @@ export const revokeAllOtherSessionsHandler = async (request: FastifyRequest, rep
         }
         // Pass the user ID and the current session's UUID to exclude it
         const result = await sessionUseCase.revokeAllOtherSessions(userId, currentSession.id);
-        
+        await AuditService.log({
+          userId,
+          userEmail: email,
+          action: "SESSIONS_PURGED",
+          entity: "Session",
+          entityId: userId,
+          ip: request.ip,
+          newData: { revokedCount: result.count },
+        });
         return reply.send({
       status: "SUCCESS",
       message: `Successfully logged out of ${result.count} other device(s).`,
