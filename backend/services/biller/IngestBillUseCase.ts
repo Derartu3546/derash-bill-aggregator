@@ -1,6 +1,7 @@
 import { IBillRepository } from "../../models/IBillRepository";
 import { prisma } from "../../config/prisma";
 import { NotificationService } from "../../shared/NotificationService";
+import { BillStatus } from "@prisma/client";
 
 interface IngestionFallbacks {
   period?: string;
@@ -31,58 +32,72 @@ export class IngestBillUseCase {
       failed: 0,
       duplicates: 0,
     };
-    await prisma.$transaction(async (tx) => {
-      for (const billData of bills) {
-        try {
-          const finalPeriod = billData.period || fallbacks?.period;
-          const finalDueDate = billData.dueDate || fallbacks?.dueDate;
-
-          if (!finalPeriod || !finalDueDate) {
-            console.error(
-              `Missing required fields for ref: ${billData.billReference}`,
-            );
-            report.failed++;
-            continue;
-          }
-          const existingBill = await this.billRepo.findDuplicate(
-            billData.billReference,
-            finalPeriod,
-            billerId,
-          );
-          if (existingBill) {
-            report.duplicates++;
-            continue;
-          }
-
-          await this.billRepo.create({
-            billReference: billData.billReference,
-            customerName: billData.customerName,
-            amount: billData.amount,
-            period: finalPeriod,
-            dueDate: new Date(finalDueDate),
-            billerId: billerId,
-            status: "UNPAID",
-            currency: "ETB",
-          });
-          report.success++;
-        } catch (error: any) {
-          console.log("PRISMA ERROR CODE:", error.code);
-          if (
-            error.code === "P2002" ||
-            error.message?.includes("Unique constraint failed")
-          ) {
-            report.duplicates++;
-          } else {
-            console.error(
-              "INGESTION FAILED FOR:",
-              billData.billReference,
-              error.message,
-            );
-            report.failed++;
-          }
-        }
-      }
+    // 1. Extract all bill refernces to check for duplicates in one go
+    const billRefs = bills.map(b => b.billReference);
+    // 2. Query existing bills in one single database call
+    const existingBills = await prisma.bill.findMany({
+      where: {
+        billerId,
+        billReference: { in: billRefs },
+      },
+      select: { billReference: true, period: true }
     });
+    const existingSet = new Set(
+      existingBills.map((b) => `${b.billReference}-${b.period}`),
+    );
+
+    const seen = new Set();
+    const toInsert = [];
+
+    for (const billData of bills) {
+      const finalPeriod = billData.period || fallbacks?.period;
+      const finalDueDate = billData.dueDate || fallbacks?.dueDate;
+
+      if (!finalPeriod || !finalDueDate) {
+        report.failed++;
+        continue;
+      }
+
+      const parsedDate = new Date(finalDueDate);
+
+      if (isNaN(parsedDate.getTime())) {
+        report.failed++;
+        continue;
+      }
+
+      if (typeof billData.amount !== "number" || billData.amount <= 0) {
+        report.failed++;
+        continue;
+      }
+
+      const key = `${billData.billReference}-${finalPeriod}`;
+
+      if (seen.has(key) || existingSet.has(key)) {
+        report.duplicates++;
+        continue;
+      }
+
+      seen.add(key);
+
+      toInsert.push({
+        billReference: billData.billReference,
+        customerName: billData.customerName,
+        amount: billData.amount,
+        period: finalPeriod,
+        dueDate: parsedDate,
+        billerId,
+        status: BillStatus.UNPAID,
+        currency: "ETB",
+      });
+    }
+    // 4 Use createMany for high speed bulk insertion
+    if (toInsert.length > 0) {
+      const result = await prisma.bill.createMany({
+        data: toInsert,
+        skipDuplicates: true,
+      });
+      report.success = result.count;
+    }
 
     if (report.success > 0) {
       try {
