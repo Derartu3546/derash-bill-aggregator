@@ -16,6 +16,7 @@ import { GetBillerBillsUseCase } from "../services/biller/GetBillerBillsUseCase"
 import { GetBillerReportUseCase } from "../services/biller/GetBillerReportUseCase";
 import { GetBillerDashboardStatsUseCase } from "../services/biller/GetBillerDashboardStatsUseCase";
 import { Bill } from "@prisma/client";
+import { CsvMapper } from "../shared/utils/CsvMapper";
 
     
 const billRepo = new PrismaBillRepository();
@@ -103,7 +104,93 @@ export async function billerRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     "/billers/upload-bills",
-    { preHandler: authenticate },
+    {
+      preHandler: authenticate,
+      validatorCompiler: () => () => true,
+      schema: {
+        description:
+          "Upload a CSV file containing bills. Allows Fallback values for missing CSV columns .",
+        tags: ["Biller"],
+        consumes: ["multipart/form-data"],
+        // 1. Documentation for the Admin query param
+        querystring: {
+          type: "object",
+          properties: {
+            billerId: {
+              type: "string",
+              description: "Required only for System Admins",
+            },
+          },
+        },
+        // 2 Documentation for the Multipart Form
+        body: {
+          type: "object",
+          properties: {
+            file: {
+              type: "string",
+              format: "binary",
+              description: "The CSV file to upload",
+            },
+            period: {
+              type: "string",
+              description: "Fallback period (e.g., 2024-May)",
+            },
+            dueDate: {
+              type: "string",
+              format: "date",
+              description: "Fallback due date",
+            },
+          },
+        },
+        // 3 .Response Documentation
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              status: { type: "string" },
+              message: { type: "string" },
+              data: {
+                type: "object",
+                properties: {
+                  total: { type: "integer" },
+                  success: { type: "integer" },
+                  failed: { type: "integer" },
+                  duplicates: { type: "integer" },
+                },
+              },
+            },
+          },
+          400: {
+            type: "object",
+            properties: {
+              status: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+          403: {
+            type: "object",
+            properties: {
+              status: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+          404: {
+            type: "object",
+            properties: {
+              status: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+          500: {
+            type: "object",
+            properties: {
+              status: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+        },
+      },
+    },
     async (request, reply) => {
       const user = (request as any).user;
 
@@ -116,11 +203,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
           if (!targetBillerId) {
             return reply
               .status(400)
-              .send(
-                ApiResponse.error(
-                  "System Admin must provide a billerId",
-                ),
-              );
+              .send(ApiResponse.error("System Admin must provide a billerId"));
           }
 
           const biller = await billerRepo.findById(targetBillerId);
@@ -152,17 +235,16 @@ export async function billerRoutes(fastify: FastifyInstance) {
         }
 
         const data = await request.file();
-              if (!data) {
-                return reply
-                  .status(400)
-                  .send(ApiResponse.error("No CSV uploaded"));
-              }
-
+        if (!data) {
+          return reply.status(400).send(ApiResponse.error("No CSV uploaded"));
+        }
 
         // UI FALLBACK VALUES
-      
+
         const uiPeriod = (data.fields.period as any)?.value?.toString().trim();
-        const uiDueDateRaw = (data.fields.dueDate as any)?.value?.toString().trim();
+        const uiDueDateRaw = (data.fields.dueDate as any)?.value
+          ?.toString()
+          .trim();
         const uiDueDate = uiDueDateRaw ? new Date(uiDueDateRaw) : null;
 
         const buffer = await data.toBuffer();
@@ -171,73 +253,21 @@ export async function billerRoutes(fastify: FastifyInstance) {
         const validationErrors: string[] = [];
         const finalBills: any[] = [];
 
-        rawBills.forEach((b: any, index: number) => {
-          const rowNumber = index + 2; 
-          const rowErrors: string[] = [];
-
-          //  1. Extract and Normalize
-          const billReference = (
-            b.billReference ||
-            b.customerReference ||
-            b.reference ||
-            b.BillRef
-          )
-            ?.toString()
-            .trim();
-          const amountRaw = b.amount || b.Amount || b.Value || b.Total;
-          const csvPeriod = (b.period || b.Period || b.Month)?.toString().trim();
-          const csvDueDateRaw = b.due_date || b.DueDate || b.Due_Date || b.Expiry;
-          const customerName =
-            (b.customerName || b.Customer || b.Name)?.toString().trim() || null;
-          
-
-          const finalPeriod = csvPeriod || uiPeriod;
-
-          // Use CSV data if it exists , otherwise use UI fallback
-          let finalDueDate: Date | null = null;
-          if (csvDueDateRaw) {
-            finalDueDate = new Date(csvDueDateRaw)
-          } else if (uiDueDate) {
-            finalDueDate = uiDueDate;
+        rawBills.forEach((row: any, index: number) => {
+          const { bill, errors } = CsvMapper.toBill(row, targetBillerId, {
+            period: uiPeriod,
+            dueDate: uiDueDate
+          });
+          if (errors.length > 0) {
+            validationErrors.push(`Row ${index + 2}: ${errors.join(", ")}`);
+          } else if (bill) {
+            finalBills.push(bill);
           }
-
-          if (!billReference) rowErrors.push("Missing Reference");
-          const amount = parseFloat(
-            amountRaw?.toString().replace(/[^0-9.-]+/g, ""),
-          );
-          if (isNaN(amount)) rowErrors.push("Invalid Amount");
-           if (amount <= 0) rowErrors.push("Amount must be greater than zero");
-
-          if (!finalPeriod) {
-            rowErrors.push("Missing Period (CSV or UI required)");
-          }
-          if (!finalDueDate || isNaN(finalDueDate.getTime())) {
-            rowErrors.push('Missing or Invalid Due Date(Required in CSV or UI');
-          }
-
-          //  3. Collect Errors or Build Bill
-          if (rowErrors.length > 0) {
-            validationErrors.push(`Row ${rowNumber}: ${rowErrors.join(", ")}`);
-          } else {
-            finalBills.push({
-              billReference,
-              customerName,
-              amount,
-              period: finalPeriod,
-              dueDate: finalDueDate,
-              billerId: targetBillerId,
-              status: "UNPAID",
-              currency: "ETB",
-            });
-          }
-        });
-
-        //  4. If ANY errors, STOP and return the list
+          });
         if (validationErrors.length > 0) {
           const errorMessage = `FILE VALIDATION FAILED:\n${validationErrors.slice(0, 10).join("\n")}${validationErrors.length > 10 ? "\n...and more" : ""}`;
           return reply.status(400).send(ApiResponse.error(errorMessage));
         }
-
 
         const result = await ingestUseCase.execute(
           finalBills,
@@ -264,7 +294,6 @@ export async function billerRoutes(fastify: FastifyInstance) {
           ApiResponse.success(result, "CSV processed successfully"),
         );
       } catch (e: any) {
-        
         await createAuditUseCase.execute({
           userId: user?.id,
           userEmail: user?.email,
@@ -279,8 +308,6 @@ export async function billerRoutes(fastify: FastifyInstance) {
           status: "FAILED",
         });
 
-        
-        
         const statusCode =
           e.message?.includes("invalid") || e.message?.includes("CSV")
             ? 400
