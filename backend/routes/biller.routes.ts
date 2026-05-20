@@ -3,7 +3,7 @@ import { CreateBillerUseCase } from "../services/biller/CreateBillerUseCase";
 import { PrismaBillerRepository } from "../models/PrismaBillerRepository";
 import { IngestBillUseCase } from "../services/biller/IngestBillUseCase";
 import { PrismaBillRepository } from "../models/PrismaBillRepository";
-import { authenticate } from "../hooks/auth.hook";
+import { authenticateSession } from "../hooks/auth.hook";
 import { CreateBillerSchema, UpdateBillerSchema } from "../shared/validators/biller.validator"; 
 import { IngestBillSchema } from "../shared/validators/biller.validator";
 import { parseCsv } from "../shared/utils/csvParser";
@@ -34,7 +34,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
   // Create Biller
   fastify.post(
     "/billers",
-    { preHandler: authenticate },
+    { preHandler: authenticateSession },
     async (request, reply) => {
       const validatedData = CreateBillerSchema.parse(request.body);
       const biller = await createBillerUC.execute(
@@ -67,7 +67,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     "/billers/:billerId/bills",
-    { preHandler: authenticate },
+    { preHandler: authenticateSession },
     async (request, reply) => {
       try {
         const { billerId } = request.params as any;
@@ -105,7 +105,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
   fastify.post(
     "/billers/upload-bills",
     {
-      preHandler: authenticate,
+      preHandler: authenticateSession,
       validatorCompiler: () => () => true,
       schema: {
         description:
@@ -320,7 +320,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     "/stats",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const user = (request as any).user;
       const stats = await getBillerDashboardStatsUseCase.execute(user.billerId);
@@ -331,7 +331,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     "/billers",
-    { preHandler: authenticate },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       try {
         // Default pagination values
@@ -359,7 +359,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
   
   fastify.get(
     "/bills",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const user = (request as any).user;
       const bills = await billRepo.findByBillerId(user.billerId);
@@ -389,7 +389,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     "/report",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const { fromDate, toDate } = request.query as any;
       const user = (request as any).user;
@@ -402,7 +402,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
       return { status: "SUCCESS", data: result };
     },
   );
-  fastify.put('/billers/:id', { preHandler: [authenticate] }, async (request, reply) => {
+  fastify.put('/billers/:id', { preHandler: [authenticateSession] }, async (request, reply) => {
     try {
       const { id } = request.params as any;
       const validatedData = UpdateBillerSchema.parse(request.body);
@@ -425,7 +425,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.delete("/billers/:id", { preHandler: [authenticate] }, async (request, reply) => {
+  fastify.delete("/billers/:id", { preHandler: [authenticateSession] }, async (request, reply) => {
     try {
       const { id } = request.params as any;
 

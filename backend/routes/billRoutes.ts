@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { authenticate } from "../hooks/auth.hook";
+import { authenticateSession} from "../hooks/auth.hook";
 import { LookupBillUseCase } from "../services/agent/LooupBillUseCase";
 import { prisma } from '../config/prisma'
 
@@ -7,7 +7,7 @@ import { prisma } from '../config/prisma'
 const lookUpBillUseCase = new LookupBillUseCase(prisma);
 
 export async function billRoutes(fastify: FastifyInstance) {
-    fastify.get('/bills/lookup', { preHandler: [authenticate] }, async (request, reply) => {
+    fastify.get('/bills/lookup', { preHandler: [authenticateSession] }, async (request, reply) => {
         const { billReference } = request.query as {
             billReference: string
         };

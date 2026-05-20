@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { CreateAgentUseCase } from "../services/agent/CreateAgentUseCase";
 import { PrismaAgentRepository } from "../models/PrismaAgentRepository";
-import { authenticate } from "../hooks/auth.hook";
+import {authenticateSession } from "../hooks/auth.hook";
 import { CreateAgentSchema } from "../shared/validators/agent.validator";
 import { IngestBillSchema } from "../shared/validators/biller.validator";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
@@ -18,7 +18,7 @@ export async function agentsRoutes(fastify: FastifyInstance){
     // Create Agent 
     fastify.post(
         "/agents",
-        { preHandler: authenticate },
+        { preHandler: authenticateSession },
         async (request, reply) => {
         const validateData = CreateAgentSchema.parse(request.body);
         const agent = await createAgentUC.execute(
@@ -28,12 +28,12 @@ export async function agentsRoutes(fastify: FastifyInstance){
 
         return { status: 'SUCCESS', agent };
         });
-    fastify.get("/agents", { preHandler: [authenticate] }, async (request, reply) => {
+    fastify.get("/agents", { preHandler: [authenticateSession] }, async (request, reply) => {
         const agents = await agentRepo.findAll({ page: 1, limit: 100 });
         return { status: 'SUCCESS', data: agents };
     });
 
-    fastify.put("/agents/:id", { preHandler: [authenticate] }, async (request, reply) => {
+    fastify.put("/agents/:id", { preHandler: [authenticateSession] }, async (request, reply) => {
         const { id } = request.params as any;
         const { name, code, isEnabled , isDeleted} = request.body as any;
 
@@ -43,7 +43,7 @@ export async function agentsRoutes(fastify: FastifyInstance){
         return {status:'SUCCESS', data:updated}
     });
 
-    fastify.delete('/agents/:id', { preHandler: [authenticate] }, async (request, reply) => {
+    fastify.delete('/agents/:id', { preHandler: [authenticateSession] }, async (request, reply) => {
         const { id } = request.params as any;
         await agentRepo.delete(id);
         return { status: "SUCCESS", message: "Agent deleted" };
