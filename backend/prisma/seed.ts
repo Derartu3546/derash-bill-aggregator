@@ -1,19 +1,23 @@
-import { PrismaClient } from "@prisma/client";
+import dotenv from "dotenv";
+import { prisma } from "../config/prisma";
 import * as bcrypt from "bcrypt";
+dotenv.config();
 
-const prisma = new PrismaClient();
+
 
 async function main() {
   console.log("Cleaning database...");
 
   // 1. Delete in order (Children first, then parents) to avoid foreign key errors
-  await prisma.refreshToken.deleteMany();
-  await prisma.bill.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.biller.deleteMany();
-  await prisma.agent.deleteMany();
+  await prisma.transaction.deleteMany(); // ADD THIS FIRST ❗
+await prisma.refreshToken.deleteMany();
 
-  const hashedPassword = await bcrypt.hash("Password123!", 10);
+await prisma.bill.deleteMany();        // now safe
+await prisma.user.deleteMany();
+await prisma.biller.deleteMany();
+await prisma.agent.deleteMany();
+
+  const hashedPassword = await bcrypt.hash("Password", 10);
 
   // 2. Create Biller (Organization)
   console.log("🏢 Creating Biller...");

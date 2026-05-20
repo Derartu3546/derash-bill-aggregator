@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { updateUserSettings } from "../controllers/user/UserController";
 import { updatePasswordFromSettingsHandler } from "../controllers/user/userPassword.controller";
-import { authenticate } from "../middleware/auth.hook";
+import { authenticateSession } from "../hooks/auth.hook";
 import { getUserSettingsHandler } from "../controllers/user/UserController";
 import {
   getSessionHandler,
@@ -10,7 +10,7 @@ import {
 } from "../controllers/auth/session.controller";
 
 export async function userRoutes(fastify: FastifyInstance) {
-    fastify.addHook('onRequest', authenticate);
+    fastify.addHook('onRequest', authenticateSession);
 
     // General Settings (Theme, language, notifications)
     fastify.patch("/settings", updateUserSettings);

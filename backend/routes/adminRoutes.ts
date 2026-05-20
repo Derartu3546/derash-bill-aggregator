@@ -1,6 +1,6 @@
 import fastify, { FastifyInstance } from "fastify";
 import crypto from 'crypto';
-import { authenticate } from "../middleware/auth.hook";
+import { authenticateSession } from "../hooks/auth.hook";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository"
 import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
 import { RegisterUserUseCase } from "../services/auth/RegisterUserUseCase";
@@ -19,7 +19,7 @@ const getAllUsersUseCase = new GetAllUsersUseCase(userRespo);
 export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get(
     "/logs",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       if ((request as any).user.role !== "SYSTEM_ADMIN") {
         return reply
@@ -32,7 +32,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   );
   fastify.post(
     "/users",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const requester = (request as any).user;
 
@@ -96,7 +96,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     "/stats",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const user = (request as any).user;
 
@@ -111,7 +111,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   );
   fastify.get(
     "/users",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const requester = (request as any).user;
 
@@ -131,18 +131,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.put(
     "/users/:id",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const { id } = request.params as any;
       const updatedData = request.body as any;
       const updateUser = await userRespo.update(id, updatedData);
-      return { staus: "SUCCESS", data: updateUser };
+      return { status: "SUCCESS", data: updateUser };
     },
   );
 
   fastify.delete(
     "/users/:id",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const { id } = request.params as any;
       const requester = (request as any).user;
@@ -173,7 +173,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.patch(
     "/users/:id/toggle-status",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const { id } = request.params as any;
       const requester = (request as any).user;
@@ -220,7 +220,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.post('/users/:id/reset-password', { preHandler: [authenticate] }, async (request, reply) => {
+  fastify.post('/users/:id/reset-password', { preHandler: [authenticateSession] }, async (request, reply) => {
     const { id } = request.params as any;
     const requester = (request as any).user;
 

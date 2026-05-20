@@ -5,7 +5,7 @@ import { LoginUseCase } from "../services/auth/LoginUseCase";
 import { ApiResponse } from "../shared/utils/ApiResponse";
 import jwt from "jsonwebtoken";
 import crypto from 'crypto';
-import { authenticate } from "../middleware/auth.hook";
+import { authenticateSession } from "../hooks/auth.hook";
 import { GetCurrentUserUseCase } from "../services/auth/GetCurrentUserUseCase";
 import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
@@ -212,7 +212,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         return { status: 'SUCCESS' };
     });
 
-    fastify.get('/auth/me', { preHandler: [authenticate] }, async (request, reply) => {
+    fastify.get('/auth/me', { preHandler: [authenticateSession] }, async (request, reply) => {
         try {
             const userId = (request as any).user.id;
             const user = await getCurrentUserUseCase.execute(userId);

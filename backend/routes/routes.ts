@@ -1,13 +1,13 @@
 import { FastifyInstance } from "fastify";
 import { BillController } from "../controllers/agent/BillController";
-import { auditLogger } from "../middleware/auditMiddleware";
-import { validateApiKey } from "../middleware/authMiddleware";
-import { validateAdminKey } from "../middleware/adminAuthMiddleware";
+import { auditLogger } from "../hooks/audit.hook";
+import { validateApiKey } from "../hooks/apiKey.hook";
+import { validateAdminKey } from "../hooks/admin.hook";
 import { AdminDataController } from "../controllers/admin/AdminDataController";
 import { NotificationController } from "../controllers/admin/NotificationController";
 
 import crypto from "crypto";
-import { authenticate } from "../middleware/auth.hook";
+import { authenticateSession } from "../hooks/auth.hook";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
 import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
 import { RegisterUserUseCase } from "../services/auth/RegisterUserUseCase";
@@ -53,7 +53,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     "/notifications",
     {
       preHandler: [
-        authenticate,
+        authenticateSession,
         async (req, reply) => {
           if ((req as any).user.role !== "SYSTEM_ADMIN") {
             return reply
@@ -67,12 +67,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
   );
   fastify.patch(
     "/notifications/:id/read",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     NotificationController.markAsRead,
   );
   fastify.get(
     "/logs",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       if ((request as any).user.role !== "SYSTEM_ADMIN") {
         return reply
@@ -85,7 +85,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   );
   fastify.post(
     "/users",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const requester = (request as any).user;
 
@@ -149,7 +149,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.get(
     "/stats",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const user = (request as any).user;
 
@@ -164,7 +164,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   );
   fastify.get(
     "/user",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const requester = (request as any).user;
 
@@ -184,18 +184,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.put(
     "/users/:id",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const { id } = request.params as any;
       const updatedData = request.body as any;
       const updateUser = await userRespo.update(id, updatedData);
-      return { staus: "SUCCESS", data: updateUser };
+      return { status: "SUCCESS", data: updateUser };
     },
   );
 
   fastify.delete(
     "/users/:id",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const { id } = request.params as any;
       const requester = (request as any).user;
@@ -224,7 +224,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.patch(
     "/users/:id/toggle-status",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const { id } = request.params as any;
       const requester = (request as any).user;
@@ -270,7 +270,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.post(
     "/users/:id/reset-password",
-    { preHandler: [authenticate] },
+    { preHandler: [authenticateSession] },
     async (request, reply) => {
       const { id } = request.params as any;
       const requester = (request as any).user;
