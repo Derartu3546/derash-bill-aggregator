@@ -16,6 +16,7 @@ import { GetBillerBillsUseCase } from "../services/biller/GetBillerBillsUseCase"
 import { GetBillerReportUseCase } from "../services/biller/GetBillerReportUseCase";
 import { GetBillerDashboardStatsUseCase } from "../services/biller/GetBillerDashboardStatsUseCase";
 import { Bill } from "@prisma/client";
+import { CsvMapper } from "../shared/utils/CsvMapper";
 
     
 const billRepo = new PrismaBillRepository();
@@ -252,70 +253,17 @@ export async function billerRoutes(fastify: FastifyInstance) {
         const validationErrors: string[] = [];
         const finalBills: any[] = [];
 
-        rawBills.forEach((b: any, index: number) => {
-          const rowNumber = index + 2;
-          const rowErrors: string[] = [];
-
-          //  1. Extract and Normalize
-          const billReference = (
-            b.billReference ||
-            b.customerReference ||
-            b.reference ||
-            b.BillRef
-          )
-            ?.toString()
-            .trim();
-          const amountRaw = b.amount || b.Amount || b.Value || b.Total;
-          const csvPeriod = (b.period || b.Period || b.Month)
-            ?.toString()
-            .trim();
-          const csvDueDateRaw =
-            b.due_date || b.DueDate || b.Due_Date || b.Expiry;
-          const customerName =
-            (b.customerName || b.Customer || b.Name)?.toString().trim() || null;
-
-          const finalPeriod = csvPeriod || uiPeriod;
-
-          // Use CSV data if it exists , otherwise use UI fallback
-          let finalDueDate: Date | null = null;
-          if (csvDueDateRaw) {
-            finalDueDate = new Date(csvDueDateRaw);
-          } else if (uiDueDate) {
-            finalDueDate = uiDueDate;
+        rawBills.forEach((row: any, index: number) => {
+          const { bill, errors } = CsvMapper.toBill(row, targetBillerId, {
+            period: uiPeriod,
+            dueDate: uiDueDate
+          });
+          if (errors.length > 0) {
+            validationErrors.push(`Row ${index + 2}: ${errors.join(", ")}`);
+          } else if (bill) {
+            finalBills.push(bill);
           }
-
-          if (!billReference) rowErrors.push("Missing Reference");
-          const amount = parseFloat(
-            amountRaw?.toString().replace(/[^0-9.-]+/g, ""),
-          );
-          if (isNaN(amount)) rowErrors.push("Invalid Amount");
-          if (amount <= 0) rowErrors.push("Amount must be greater than zero");
-
-          if (!finalPeriod) {
-            rowErrors.push("Missing Period (CSV or UI required)");
-          }
-          if (!finalDueDate || isNaN(finalDueDate.getTime())) {
-            rowErrors.push("Missing or Invalid Due Date(Required in CSV or UI");
-          }
-
-          //  3. Collect Errors or Build Bill
-          if (rowErrors.length > 0) {
-            validationErrors.push(`Row ${rowNumber}: ${rowErrors.join(", ")}`);
-          } else {
-            finalBills.push({
-              billReference,
-              customerName,
-              amount,
-              period: finalPeriod,
-              dueDate: finalDueDate,
-              billerId: targetBillerId,
-              status: "UNPAID",
-              currency: "ETB",
-            });
-          }
-        });
-
-        //  4. If ANY errors, STOP and return the list
+          });
         if (validationErrors.length > 0) {
           const errorMessage = `FILE VALIDATION FAILED:\n${validationErrors.slice(0, 10).join("\n")}${validationErrors.length > 10 ? "\n...and more" : ""}`;
           return reply.status(400).send(ApiResponse.error(errorMessage));
