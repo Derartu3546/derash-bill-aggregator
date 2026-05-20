@@ -288,6 +288,17 @@ npm run test:coverage
 
 ---
 
+## 📖 API Documentation (Swagger)
+This project uses **OpenAPI 3.0** via Swagger for interactive documentation. 
+Once the server is running, you can explore, test, and view all API endpoints (including file uploads) by visiting:
+
+* **URL:** `http://localhost:5000/docs`
+
+### Features:
+* **Interactive Testing:** Use the "Try it out" button to send real requests.
+* **Schema Validation:** View required fields, data types, and response formats.
+* **File Uploads:** Test the CSV Bill Ingestion directly through the UI.
+
 # 🧠 Engineering Challenges Solved
 
 This project solves practical backend challenges such as:
