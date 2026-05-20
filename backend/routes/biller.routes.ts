@@ -3,7 +3,7 @@ import { CreateBillerUseCase } from "../services/biller/CreateBillerUseCase";
 import { PrismaBillerRepository } from "../models/PrismaBillerRepository";
 import { IngestBillUseCase } from "../services/biller/IngestBillUseCase";
 import { PrismaBillRepository } from "../models/PrismaBillRepository";
-import { authenticate } from "../middleware/auth.hook";
+import { authenticate } from "../hooks/auth.hook";
 import { CreateBillerSchema, UpdateBillerSchema } from "../shared/validators/biller.validator"; 
 import { IngestBillSchema } from "../shared/validators/biller.validator";
 import { parseCsv } from "../shared/utils/csvParser";

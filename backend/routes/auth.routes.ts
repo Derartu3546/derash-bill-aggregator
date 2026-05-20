@@ -5,7 +5,7 @@ import { LoginUseCase } from "../services/auth/LoginUseCase";
 import { ApiResponse } from "../shared/utils/ApiResponse";
 import jwt from "jsonwebtoken";
 import crypto from 'crypto';
-import { authenticate } from "../middleware/auth.hook";
+import { authenticate } from "../hooks/auth.hook";
 import { GetCurrentUserUseCase } from "../services/auth/GetCurrentUserUseCase";
 import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";

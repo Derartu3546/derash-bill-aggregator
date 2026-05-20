@@ -1,13 +1,13 @@
 import { FastifyInstance } from "fastify";
 import { BillController } from "../controllers/agent/BillController";
-import { auditLogger } from "../middleware/auditMiddleware";
-import { validateApiKey } from "../middleware/authMiddleware";
-import { validateAdminKey } from "../middleware/adminAuthMiddleware";
+import { auditLogger } from "../hooks/audit.hook";
+import { validateApiKey } from "../hooks/apiKey.hook";
+import { validateAdminKey } from "../hooks/admin.hook";
 import { AdminDataController } from "../controllers/admin/AdminDataController";
 import { NotificationController } from "../controllers/admin/NotificationController";
 
 import crypto from "crypto";
-import { authenticate } from "../middleware/auth.hook";
+import { authenticate } from "../hooks/auth.hook";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
 import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
 import { RegisterUserUseCase } from "../services/auth/RegisterUserUseCase";

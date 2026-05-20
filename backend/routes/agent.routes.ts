@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { CreateAgentUseCase } from "../services/agent/CreateAgentUseCase";
 import { PrismaAgentRepository } from "../models/PrismaAgentRepository";
-import { authenticate } from "../middleware/auth.hook";
+import { authenticate } from "../hooks/auth.hook";
 import { CreateAgentSchema } from "../shared/validators/agent.validator";
 import { IngestBillSchema } from "../shared/validators/biller.validator";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";

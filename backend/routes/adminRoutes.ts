@@ -1,6 +1,6 @@
 import fastify, { FastifyInstance } from "fastify";
 import crypto from 'crypto';
-import { authenticate } from "../middleware/auth.hook";
+import { authenticate } from "../hooks/auth.hook";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository"
 import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
 import { RegisterUserUseCase } from "../services/auth/RegisterUserUseCase";

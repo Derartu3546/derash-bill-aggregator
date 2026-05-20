@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { updateUserSettings } from "../controllers/user/UserController";
 import { updatePasswordFromSettingsHandler } from "../controllers/user/userPassword.controller";
-import { authenticate } from "../middleware/auth.hook";
+import { authenticate } from "../hooks/auth.hook";
 import { getUserSettingsHandler } from "../controllers/user/UserController";
 import {
   getSessionHandler,

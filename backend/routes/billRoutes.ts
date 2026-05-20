@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { authenticate } from "../middleware/auth.hook";
+import { authenticate } from "../hooks/auth.hook";
 import { LookupBillUseCase } from "../services/agent/LooupBillUseCase";
 import { prisma } from '../config/prisma'
 
