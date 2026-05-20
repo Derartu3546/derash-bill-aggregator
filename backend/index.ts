@@ -12,6 +12,8 @@ import { agentsRoutes } from "./routes/agent.routes";
 import { agentRoutes } from "./routes/routes";
 import { userRoutes } from "./routes/user.routes";
 import { z } from "zod";
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui'
 
 
 
@@ -21,6 +23,7 @@ const fastify = Fastify({
   },
   trustProxy: true,
 });
+
 
 // CORS
 fastify.register(cors, {
@@ -41,6 +44,45 @@ fastify.register(multipart, {
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+fastify.register(swagger, {
+  openapi: {
+    info: {
+      title: "Derash Bill Aggregator API",
+      description: "Backend API documentation for Billers, Agents, and Admins",
+      version: "1.0.0",
+    },
+    security: [
+      {cookieAuth:[]}
+    ],
+    tags: [
+      { name: "Authentication", description: "Login and Session Management" },
+      { name: "Biller", description: "Bill ingestion and Biller management" },
+      {
+        name: "Admin",
+        description: "System-wide monitoring and notifications",
+      },
+    ],
+    components: {
+      securitySchemes: {
+        cookieAuth: {
+          type: "apiKey",
+          in: "cookie",
+          name: "access_token",
+        },
+      },
+    },
+  },
+});
+
+fastify.register(swaggerUi, {
+  routePrefix: "/docs",
+  uiConfig: {
+    docExpansion: 'list',
+    deepLinking: false,
+  },
+});
+
+fastify
 // Routes
 fastify.register(authRoutes, { prefix: "/api/v1" });
 fastify.register(billerRoutes, { prefix: "/api/v1" });

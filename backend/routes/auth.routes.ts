@@ -46,84 +46,127 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
 
     // Login 
-    fastify.post('/auth/login', {
+    fastify.post(
+      "/auth/login",
+      {
         schema: {
-            body: {
-                type: 'object',
-                required: ['email', 'password'],
+          description: "Authenticate user and receive a session cookie",
+          tags: ["Authentication"],
+          body: {
+            type: "object",
+            required: ["email", "password"],
+            properties: {
+              email: { type: "string", format: "email" },
+              password: { type: "string", minLength: 6 },
+            },
+          },
+          response: {
+            200: {
+              type: "object",
+              properties: {
+                status: { type: "string" },
+                message: { type: "string" },
+                data: {
+                  type: "object",
+                  properties: {
+                    mustChangePassword: { type: "boolean" },
+                    tempToken: { type: "string" },
+                    user: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        email: { type: "string" },
+                        role: { type: "string" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            401: {
+              type: "object",
                 properties: {
-                    email: { type: 'string', format: 'email' },
-                    password:{type:'string', minLength:6}
-                }
-            }
-        }
-    }, async (request, reply) => {
+                    status: { type: 'string' },
+                    message:{type:'string'}
+              }
+            },
+              },
+        },
+      },
+      async (request, reply) => {
         try {
-            const { email, password } = request.body as any;
-            
-            const meta = {
-              userAgent: request.headers["user-agent"] || "Unknown Device",
-              ipAddress: request.ip || "127.0.0.1",
-            };
-            const result = await loginUseCase.execute(email, password, meta);
-            if (!result.user) {
-                throw new Error('Authenticated user data is missing');
-            }
-            
+          const { email, password } = request.body as any;
 
-            await createAuditUseCase.execute({
-              userId: result.user.id,
-              userEmail: result.user.email,
-              action: "LOGIN",
-              entityName: "User",
-              entityId: result.user.id,
-              newValues: { loginTime: new Date() },
-              ipAddress: request.ip,
-                userAgent: request.headers["user-agent"],
-              status:'SUCCESS'
-            });
+          const meta = {
+            userAgent: request.headers["user-agent"] || "Unknown Device",
+            ipAddress: request.ip || "127.0.0.1",
+          };
+          const result = await loginUseCase.execute(email, password, meta);
+          if (!result.user) {
+            throw new Error("Authenticated user data is missing");
+          }
 
-            if (result.mustChangePassword) {
-                return ApiResponse.success({
-                    mustChangePassword: true,
-                    tempToken: result.tempToken,
-                    user: result.user
-                }, 'Password change required before accessing the system');
-            }
+          await createAuditUseCase.execute({
+            userId: result.user.id,
+            userEmail: result.user.email,
+            action: "LOGIN",
+            entityName: "User",
+            entityId: result.user.id,
+            newValues: { loginTime: new Date() },
+            ipAddress: request.ip,
+            userAgent: request.headers["user-agent"],
+            status: "SUCCESS",
+          });
 
+          if (result.mustChangePassword) {
+            return ApiResponse.success(
+              {
+                mustChangePassword: true,
+                tempToken: result.tempToken,
+                user: result.user,
+              },
+              "Password change required before accessing the system",
+            );
+          }
 
+          const { accessToken, refreshToken } = result;
+          if (!accessToken || !refreshToken) {
+            throw new Error("Failed to generate authentication tokens");
+          }
 
-            const { accessToken, refreshToken } = result;
-            if (!accessToken || !refreshToken) {
-              throw new Error('Failed to generate authentication tokens');
-            }
-
-            reply.setCookie("access_token", accessToken, {
-              path: "/",
-              httpOnly: true,
-              maxAge: 900,
-            });
-            reply.setCookie("refresh_token", refreshToken, {
-              httpOnly: true,
-              path: "/api/v1/auth/refresh",
-              maxAge: 604800
-            });
-            return ApiResponse.success({ user: result.user }, 'Login successful');
+          reply.setCookie("access_token", accessToken, {
+            path: "/",
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 900,
+          });
+          reply.setCookie("refresh_token", refreshToken, {
+            httpOnly: true,
+            path: "/api/v1/auth/refresh",
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 604800,
+          });
+          return ApiResponse.success({ user: result.user }, "Login successful");
         } catch (err: any) {
-            const body = request.body as any;
-            const emailToLog = body?.email || "Unknown";
-            await createAuditUseCase.execute({
-              action: "LOGIN_FAILED",
-              entityName: "Auth",
-              entityId: "N/A",
-              newValues: { reason: err.message },
-              ipAddress: request.ip,
-              userAgent: request.headers["user-agent"],
-              status: "FAILED",
-            });
-            return reply.status(401).send({ status: 'AUTH_FAILED', message: err.message });
+          const body = request.body as any;
+          const emailToLog = body?.email || "Unknown";
+          await createAuditUseCase.execute({
+            action: "LOGIN_FAILED",
+            entityName: "Auth",
+            entityId: "N/A",
+            newValues: { reason: err.message },
+            ipAddress: request.ip,
+            userAgent: request.headers["user-agent"],
+            status: "FAILED",
+          });
+          return reply
+            .status(401)
+            .send({ status: "AUTH_FAILED", message: err.message });
         }
-    });
+      },
+    );
 
     fastify.post('/auth/refresh', async (request, reply) => {
         const oldToken = request.cookies.refresh_token;
@@ -153,13 +196,16 @@ export async function authRoutes(fastify: FastifyInstance) {
     request.ip);
 
         reply.setCookie("access_token", newAccessToken, {
-            path: "/",
-            httpOnly: true,
-            maxAge: 900,
+          path: "/",
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          maxAge: 900,
         });
         reply.setCookie("refresh_token", newRefreshToken, {
             path: "/api/v1/auth/refresh",
             httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
             maxAge: 604800,
         });
 
