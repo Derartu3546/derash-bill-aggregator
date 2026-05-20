@@ -24,5 +24,6 @@ export class NotificationController {
         });
         return ApiResponse.success(null, "Notification marked as read.");
     }
+
     
 }
