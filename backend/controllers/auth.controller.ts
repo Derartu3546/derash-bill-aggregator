@@ -21,7 +21,7 @@ export const loginHandler = async (
   });
 
   // 2. Validate user existence and status
-  if (!user || !user.isActive) {
+  if (!user) {
     return reply.status(401).send({ error: "Invalid credentials" });
   }
 
