@@ -37,6 +37,7 @@
     "@fastify/swagger-ui": "^5.2.6",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
+    "autocannon": "^8.0.0",
     "bcrypt": "^6.0.0",
     "crypto": "^1.0.1",
     "csv-parser": "^3.2.0",
