@@ -186,7 +186,6 @@ export async function authRoutes(fastify: FastifyInstance) {
         const newAccessToken = jwt.sign({ id: savedToken.user.id, role: savedToken.user.role }, process.env.JWT_SECRET!, { expiresIn: '15m' });
         const newRefreshToken = crypto.randomBytes(40).toString('hex');
 
-        // ✅ FIX: saveRefreshToken expects only 3 arguments (userId, token, expiresAt)
         await userRespo.saveRefreshToken(
             savedToken.user.id, 
             newRefreshToken, 
@@ -257,6 +256,56 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
     });
 
+    // ========== FORGOT PASSWORD (NEW) ==========
+    fastify.post("/auth/forgot-password", {
+      schema: {
+        description: "Request a password reset token",
+        tags: ["Authentication"],
+        body: {
+          type: "object",
+          required: ["email"],
+          properties: {
+            email: { type: "string", format: "email" }
+          }
+        }
+      }
+    }, async (request, reply) => {
+      const { email } = request.body as { email: string };
+
+      // Always return generic message (prevents user enumeration)
+      const user = await userRespo.findByEmail(email);
+      if (!user) {
+        return {
+          status: "SUCCESS",
+          message: "If that email exists, you will receive a reset link shortly."
+        };
+      }
+
+      // Generate secure token (32 bytes hex)
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      // Store token in database
+      await userRespo.updateResetToken(user.id, resetToken, expiresAt);
+
+      // Build reset link (frontend URL from environment)
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+      // Log the link (replace with real email in production)
+      console.log(`🔐 Password reset link for ${email}: ${resetLink}`);
+
+      // Optional: send real email (using nodemailer, etc.)
+      // await sendResetEmail(email, resetLink);
+
+      return {
+        status: "SUCCESS",
+        message: "If that email exists, you will receive a reset link shortly.",
+        // ⚠️ Remove resetToken in production – only for local testing
+        ...(process.env.NODE_ENV === "development" && { resetToken })
+      };
+    });
+
     fastify.post("/auth/reset-password", async (request, reply) => {
         const { token, newPassword } = request.body as any;
 
@@ -264,7 +313,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             await resetPasswordUseCase.execute(token, newPassword);
             return { status: "SUCCESS", message: "Password reset successful. You can now login." };
         } catch (e: any) {
-            return reply.status(400).send({ status: "FAILED" , message: e.message});
+            return reply.status(400).send({ status: "FAILED" , message: e.message });
         }
     });
 }
