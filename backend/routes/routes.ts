@@ -27,7 +27,7 @@ const billController = new BillController();
 
 // --- ROUTES FOR AGENTS ---
 export async function agentRoutes(fastify: FastifyInstance) {
-  fastify.addHook("preHandler", validateApiKey); 
+  fastify.addHook("preHandler",  authenticateSession); 
   fastify.addHook("preHandler", auditLogger);
 
   fastify.get("/dashboard", billController.getDashboard);
@@ -41,7 +41,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
 export async function adminRoutes(fastify: FastifyInstance) {
   const adminDataController = new AdminDataController();
 
-  // fastify.addHook("preHandler", validateAdminKey);
+  fastify.addHook("preHandler", authenticateSession);
   fastify.addHook("preHandler", auditLogger);
 
   fastify.get("/global-report",{preHandler:[validateAdminKey]} ,adminDataController.getAdminReport);
