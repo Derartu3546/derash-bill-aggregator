@@ -112,7 +112,7 @@ fastify.get("/", async (request, reply) => {
 });
 
 // Health Check
-fastify.get("/health", async () => {
+fastify.get("/api/v1/health", async () => {
   return {
     status: "UP",
     timestamp: new Date().toISOString(),
