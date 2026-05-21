@@ -7,7 +7,6 @@ export class AgentService {
     try {
       console.log(`Inquiry Started: Ref=${billReference}, Agent=${agentCode}`);
 
-      
       const agent = await prisma.agent.findUnique({
         where: { code: agentCode },
       });
@@ -16,7 +15,7 @@ export class AgentService {
       }
 
       const bill = await prisma.bill.findFirst({
-        where: { billReference: billReference }, 
+        where: { billReference: billReference },
         include: { biller: true, customer: true },
       });
 
@@ -32,7 +31,8 @@ export class AgentService {
       }
 
       return {
-        customer_name: bill.customer?.fullName, // Updated: full_name -> fullName
+        // ✅ FIX: fallback to bill.customerName if no linked customer
+        customer_name: bill.customer?.fullName || bill.customerName || "N/A",
         biller_name: bill.biller.name,
         status: calc.effectiveStatus,
         amount_due: calc.remainingDebt,
@@ -40,11 +40,11 @@ export class AgentService {
         warning: warningMessage,
         is_blocked: calc.isBlocked,
         total_to_pay: calc.totalRequired,
-        due_date: bill.dueDate.toISOString().split("T")[0], // Updated: due_date -> dueDate
+        due_date: bill.dueDate.toISOString().split("T")[0],
         currency: bill.currency,
         bill_id: bill.id,
         agent_id: agent.id,
-        allows_partial: bill.biller.allowsPartial, // Updated: allows_partial -> allowsPartial
+        allows_partial: bill.biller.allowsPartial,
         transactionId: `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
         idempotencyKey: `IDEM-${bill.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       };
@@ -73,7 +73,6 @@ export class AgentService {
       throw new Error("Payer phone number is required for Telebirr.");
     }
 
-    // STEP 1: CREATE PENDING RECORD
     const initialTx = await prisma.transaction.create({
       data: {
         transactionId: data.transactionId,
@@ -106,7 +105,6 @@ export class AgentService {
 
         if (calc.isBlocked) throw new Error(calc.blockReason);
 
-        // --- NEW VALIDATION: PARTIAL PAYMENT CHECK ---
         if (bill.biller.allowsPartial === false && paymentAmount < calc.totalRequired) {
           throw new Error(
             `This biller (${bill.biller.name}) does not allow partial payments. Full amount of ${calc.totalRequired} ${bill.currency} is required.`,
@@ -122,10 +120,7 @@ export class AgentService {
           );
         }
 
-
         const principalPaid = paymentAmount - calc.penaltyFee;
-
-        
         let agentCommission = agent.code === "TELEBIRR" ? 1.5 : 2.0;
 
         const transaction = await tx.transaction.update({
@@ -140,8 +135,6 @@ export class AgentService {
           include: { agent: true },
         });
 
-        // --- NEW LOGIC: CORRECT BALANCE CALCULATION ---
-        
         const newRemaining = Number(bill.remainingBalance) - principalPaid;
         const isSettled = newRemaining <= 0;
 
@@ -192,8 +185,8 @@ export class AgentService {
 
     const whereClause: any = {
       ...(status ? { status } : {}),
-      ...(agentId ? { agentId } : {}), // Updated: agent_id -> agentId
-      ...(billerId ? { bill: { billerId: billerId } } : {}), // Updated: biller_id -> billerId
+      ...(agentId ? { agentId } : {}),
+      ...(billerId ? { bill: { billerId: billerId } } : {}),
       ...(fromDate || toDate
         ? {
             createdAt: {
@@ -214,34 +207,28 @@ export class AgentService {
             agent: { select: { name: true, code: true } },
             bill: {
               include: {
-                customer: { select: { fullName: true, phoneNo: true } }, // Updated names
+                customer: { select: { fullName: true, phoneNo: true } },
                 biller: { select: { name: true } },
               },
             },
           },
           orderBy: { createdAt: "desc" },
         }),
-
         prisma.transaction.aggregate({
-          where: {
-            ...whereClause,
-            status: "SUCCESSFUL", // Ensure this matches your TransactionStatus enum
-          },
+          where: { ...whereClause, status: "SUCCESSFUL" },
           _sum: {
-            totalAmount: true, // Updated names
+            totalAmount: true,
             agentShare: true,
             aggregatorShare: true,
             billerShare: true,
           },
           _count: { id: true },
         }),
-
         Promise.resolve({
           userCount: await prisma.customer.count(),
           agentCount: await prisma.agent.count(),
           billerCount: await prisma.biller.count(),
         }),
-
         prisma.transaction.count(),
       ],
     );
@@ -270,18 +257,15 @@ export class AgentService {
     }
 
     const baseFilter = {
-      ...(agentId ? { agentId } : {}), // Updated name
+      ...(agentId ? { agentId } : {}),
       ...(targetDate ? { createdAt: dateFilter } : {}),
     };
 
     const [aggregates, userCount, agentCount, billerCount] = await Promise.all([
       prisma.transaction.aggregate({
-        where: {
-          ...baseFilter,
-          status: "SUCCESSFUL",
-        },
+        where: { ...baseFilter, status: "SUCCESSFUL" },
         _sum: {
-          totalAmount: true, // Updated names
+          totalAmount: true,
           agentShare: true,
           aggregatorShare: true,
           billerShare: true,
@@ -306,4 +290,3 @@ export class AgentService {
     };
   }
 }
-
