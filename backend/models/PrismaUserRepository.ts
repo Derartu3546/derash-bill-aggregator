@@ -4,16 +4,30 @@ import { User, UserRole } from './User';
 import { RefreshToken } from '@prisma/client';
 
 export class PrismaUserRepository implements IUserRepository {
-  // Dummy implementations for user settings (if not used, return null)
-  async updateUserSettings(userId: string, data: any): Promise<any> {
-    // If you have a UserSettings model in schema, implement properly.
-    // Otherwise, just return null to satisfy the interface.
-    return null;
-  }
+  // ========== User Settings Methods (properly implemented) ==========
   async getUserSettings(userId: string): Promise<any> {
-    return null;
+    let settings = await prisma.userSettings.findUnique({
+      where: { userId },
+    });
+    // Auto-create default settings if not exist
+    if (!settings) {
+      settings = await prisma.userSettings.create({
+        data: { userId },
+      });
+    }
+    return settings;
   }
 
+  async updateUserSettings(userId: string, data: any): Promise<any> {
+    // Use upsert to handle missing record gracefully
+    return prisma.userSettings.upsert({
+      where: { userId },
+      update: data,
+      create: { userId, ...data },
+    });
+  }
+
+  // Rest of your existing methods (unchanged)
   private toDomain(u: any): User {
     return new User(
       u.id,
@@ -125,7 +139,6 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   async saveRefreshToken(userId: string, token: string, expiresAt: Date) {
-    // Removed userAgent – not in schema
     return prisma.refreshToken.create({
       data: { userId, token, expiresAt },
     });
