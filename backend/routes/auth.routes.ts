@@ -131,19 +131,21 @@ export async function authRoutes(fastify: FastifyInstance) {
             throw new Error("Failed to generate authentication tokens");
           }
 
-          // ✅ FIX: use sameSite: 'none' and secure: true for cross‑origin requests (frontend on different domain)
+          // ✅ Conditional cookie security – works for localhost (self‑signed HTTPS) and production
+          const origin = request.headers.origin || '';
+          const isLocal = origin.includes('localhost');
           reply.setCookie("access_token", accessToken, {
             path: "/",
             httpOnly: true,
-            secure: true,                     // required when sameSite = 'none'
-            sameSite: "none",                 // allows cross‑origin cookies
+            secure: !isLocal,          // false for localhost, true otherwise
+            sameSite: isLocal ? "lax" : "none",
             maxAge: 900,
           });
           reply.setCookie("refresh_token", refreshToken, {
             httpOnly: true,
             path: "/api/v1/auth/refresh",
-            secure: true,
-            sameSite: "none",
+            secure: !isLocal,
+            sameSite: isLocal ? "lax" : "none",
             maxAge: 604800,
           });
           return ApiResponse.success({ user: result.user }, "Login successful");
@@ -170,7 +172,6 @@ export async function authRoutes(fastify: FastifyInstance) {
         const oldToken = request.cookies.refresh_token;
 
         if (!oldToken) return reply.status(401).send({ message: 'No refresh session' });
-        // Find token in DB
         const savedToken = await userRespo.findRefreshToken(oldToken);
 
         if (!savedToken) {
@@ -193,18 +194,21 @@ export async function authRoutes(fastify: FastifyInstance) {
             new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         );
 
+        // ✅ Same conditional cookie logic for refresh endpoint
+        const origin = request.headers.origin || '';
+        const isLocal = origin.includes('localhost');
         reply.setCookie("access_token", newAccessToken, {
           path: "/",
           httpOnly: true,
-          secure: true,
-          sameSite: "none",
+          secure: !isLocal,
+          sameSite: isLocal ? "lax" : "none",
           maxAge: 900,
         });
         reply.setCookie("refresh_token", newRefreshToken, {
             path: "/api/v1/auth/refresh",
             httpOnly: true,
-            secure: true,
-            sameSite: "none",
+            secure: !isLocal,
+            sameSite: isLocal ? "lax" : "none",
             maxAge: 604800,
         });
 
