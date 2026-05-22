@@ -131,18 +131,19 @@ export async function authRoutes(fastify: FastifyInstance) {
             throw new Error("Failed to generate authentication tokens");
           }
 
+          // ✅ FIX: use sameSite: 'none' and secure: true for cross‑origin requests (frontend on different domain)
           reply.setCookie("access_token", accessToken, {
             path: "/",
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
+            secure: true,                     // required when sameSite = 'none'
+            sameSite: "none",                 // allows cross‑origin cookies
             maxAge: 900,
           });
           reply.setCookie("refresh_token", refreshToken, {
             httpOnly: true,
             path: "/api/v1/auth/refresh",
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
+            secure: true,
+            sameSite: "none",
             maxAge: 604800,
           });
           return ApiResponse.success({ user: result.user }, "Login successful");
@@ -195,14 +196,15 @@ export async function authRoutes(fastify: FastifyInstance) {
         reply.setCookie("access_token", newAccessToken, {
           path: "/",
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          secure: true,
+          sameSite: "none",
           maxAge: 900,
         });
         reply.setCookie("refresh_token", newRefreshToken, {
             path: "/api/v1/auth/refresh",
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: true,
+            sameSite: "none",
             maxAge: 604800,
         });
 
@@ -256,7 +258,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // ========== FORGOT PASSWORD (NEW) ==========
+    // ========== FORGOT PASSWORD ==========
     fastify.post("/auth/forgot-password", {
       schema: {
         description: "Request a password reset token",
@@ -272,7 +274,6 @@ export async function authRoutes(fastify: FastifyInstance) {
     }, async (request, reply) => {
       const { email } = request.body as { email: string };
 
-      // Always return generic message (prevents user enumeration)
       const user = await userRespo.findByEmail(email);
       if (!user) {
         return {
@@ -281,27 +282,19 @@ export async function authRoutes(fastify: FastifyInstance) {
         };
       }
 
-      // Generate secure token (32 bytes hex)
       const resetToken = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-      // Store token in database
       await userRespo.updateResetToken(user.id, resetToken, expiresAt);
 
-      // Build reset link (frontend URL from environment)
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
       const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-      // Log the link (replace with real email in production)
       console.log(`🔐 Password reset link for ${email}: ${resetLink}`);
-
-      // Optional: send real email (using nodemailer, etc.)
-      // await sendResetEmail(email, resetLink);
 
       return {
         status: "SUCCESS",
         message: "If that email exists, you will receive a reset link shortly.",
-        // ⚠️ Remove resetToken in production – only for local testing
         ...(process.env.NODE_ENV === "development" && { resetToken })
       };
     });
