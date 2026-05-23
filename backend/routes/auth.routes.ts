@@ -174,13 +174,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         if (!oldToken) return reply.status(401).send({ message: 'No refresh session' });
         const savedToken = await userRespo.findRefreshToken(oldToken);
 
-        if (!savedToken) {
-            console.log('SECURITY ALERT: Attempted use of an invalid or rotated token!.');
-            return reply.status(401).send({ message: 'Session expired' });
-        }
-        if (savedToken.expiresAt < new Date()) {
-            await userRespo.deleteRefreshToken(oldToken);
-            return reply.status(401).send({ message: 'Session expired' });
+        if (!savedToken || savedToken.expiresAt < new Date()) {
+          if (savedToken) await userRespo.deleteRefreshToken(oldToken);
+          return reply.status(401).send({ message: "Session expired" });
         }
 
         await userRespo.deleteRefreshToken(oldToken);
@@ -194,22 +190,24 @@ export async function authRoutes(fastify: FastifyInstance) {
             new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         );
 
-        // ✅ Same conditional cookie logic for refresh endpoint
-        const origin = request.headers.origin || '';
-        const isLocal = origin.includes('localhost');
-        reply.setCookie("access_token", newAccessToken, {
-          path: "/",
+      const isProd = process.env.NODE_ENV === "production";
+        const cookieOptions = {
           httpOnly: true,
-          secure: !isLocal,
-          sameSite: isLocal ? "lax" : "none",
-          maxAge: 900,
+          secure: true, // Render and Vercel both provide SSL (HTTPS)
+          sameSite: "none" as const, // Critical for cross-domain
+          path: "/",
+        };
+        // const origin = request.headers.origin || '';
+        // const isLocal = origin.includes('localhost');
+        reply.setCookie("access_token", newAccessToken, {
+          ...cookieOptions,
+          maxAge: 900, // 15 mins
         });
         reply.setCookie("refresh_token", newRefreshToken, {
-            path: "/api/v1/auth/refresh",
-            httpOnly: true,
-            secure: !isLocal,
-            sameSite: isLocal ? "lax" : "none",
-            maxAge: 604800,
+          ...cookieOptions,
+          // Match this exactly to the login endpoint config
+          path: "/api/v1/auth/refresh",
+          maxAge: 604800, // 7 days
         });
 
         return { status: 'SUCCESS' };
