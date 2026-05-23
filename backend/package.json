@@ -38,6 +38,7 @@
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
     "autocannon": "^8.0.0",
+    "axios": "^1.16.1",
     "bcrypt": "^6.0.0",
     "crypto": "^1.0.1",
     "csv-parser": "^3.2.0",
