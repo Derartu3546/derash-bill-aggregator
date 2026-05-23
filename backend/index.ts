@@ -27,12 +27,11 @@ const fastify = Fastify({
 
 // CORS
 fastify.register(cors, {
-  origin: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  origin: "http://localhost:5173",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-admin-secret"],
 });
-
 fastify.register(fastifyCookie, {
   secret: "4dr0srh-ecet-ky-s2a2ee",
   hook: "onRequest",
