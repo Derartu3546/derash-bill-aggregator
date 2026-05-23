@@ -212,7 +212,7 @@ Make sure your .env is properly configured before running Docker:
 ```
 DATABASE_URL="your_postgresql_url"
 JWT_SECRET="your_secret_key"
-PORT=3000
+PORT=5000
 ```
 # 🚀 Getting Started
 

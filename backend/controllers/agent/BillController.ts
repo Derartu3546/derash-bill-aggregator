@@ -6,93 +6,116 @@ export class BillController {
   private agentService = new AgentService();
 
   getBillInfo = async (request: FastifyRequest, reply: FastifyReply) => {
-    const { reference } = request.params as { reference: string };
-
-    const agentCode =
-      (request.headers["x-agent-code"] as string) ||
-      (request.query as any)?.agent_code;
-
-    if (!agentCode) {
-      return reply.status(400).send({
-        success: false,
-        message:
-          "Agent Code is required. Please provide it in 'x-agent-code' header.",
-      });
-    }
-
     try {
+      const { reference } = request.params as { reference: string };
+      const reqAny = request as any;
+      
+      let agentCode = request.headers["x-agent-code"] as string;
+
+      
+      if (reqAny.agent?.code) {
+        agentCode = reqAny.agent.code;
+      } 
+      
+      else if (reqAny.user) {
+        const session = reqAny.user;
+        
+        
+        if (session.agentId) {
+          const agent = await prisma.agent.findUnique({
+            where: { id: session.agentId },
+            select: { code: true }
+          });
+          if (agent) agentCode = agent.code;
+        } 
+       
+        else if (session.id) {
+          const agent = await prisma.agent.findFirst({
+            where: {
+              OR: [
+                { id: session.id },
+                { users: { some: { id: session.id } } }
+              ]
+            },
+            select: { code: true }
+          });
+          if (agent) agentCode = agent.code;
+        }
+      }
+
+     
+      if (!agentCode) {
+        return reply.status(403).send({
+          success: false,
+          error: "Forbidden",
+          message: "Access Denied: Unable to safely map your request context to a registered Agent Code.",
+        });
+      }
+
+     
       const bill = await this.agentService.inquiry(reference, agentCode);
-      if (!bill)
-        return reply
-          .status(404)
-          .send({ success: false, message: "No unpaid bill found." });
+      
+      if (!bill) {
+        return reply.status(404).send({ 
+          success: false, 
+          message: "No unpaid bill found with that reference identifier." 
+        });
+      }
 
-      return reply.send({ success: true, data: bill });
-    } catch (error: any) {
-      return reply.status(400).send({ success: false, message: error.message });
-    }
-  };
-
-  processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const result = await this.agentService.confirmPayment(
-        request.body as any,
-      );
-      return reply.send(result);
-    } catch (error: any) {
-      return reply.status(400).send({ success: false, message: error.message });
-    }
-  };
-
-  getAgentReport = async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const agent = (request as any).agent;
-
-      const { fromDate, toDate } = request.query as {
-        fromDate?: string;
-        toDate?: string;
-      };
-
-      // FIX: Map agent.id to agentId to match the Service parameter
-      const report = await this.agentService.getFullReport({
-        agentId: agent.id,
-        fromDate,
-        toDate,
+      return reply.send({ 
+        success: true, 
+        data: bill 
       });
 
-      return reply.send({
-        status: "SUCCESS",
-        agent_name: agent.name,
-        data: report,
-      });
     } catch (error: any) {
-      return reply
-        .status(400)
-        .send({ status: "ERROR", message: error.message });
+      console.error("Bill Inquiry Error:", error);
+      return reply.status(500).send({ 
+        success: false, 
+        message: "Internal Server Error during bill inquiry processing.",
+        details: error.message 
+      });
     }
   };
 
   getDashboard = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const agentCodeHeader = request.headers["x-agent-code"] as string;
-      let agentId = (request as any).user?.id;
+      const reqAny = request as any;
+      let agentId: string | null = null;
 
-      if (!agentId && agentCodeHeader) {
-        const agent = await prisma.agent.findUnique({
-          where: { code: agentCodeHeader },
-          select: { id: true },
-        });
-        agentId = agent?.id;
+     
+      if (reqAny.agent?.id) {
+        agentId = reqAny.agent.id;
+      } 
+     
+      else if (reqAny.user) {
+        const session = reqAny.user;
+        
+        if (session.agentId) {
+          agentId = session.agentId;
+        } else if (session.id) {
+          
+          const foundAgent = await prisma.agent.findFirst({
+            where: {
+              OR: [
+                { id: session.id },
+                { users: { some: { id: session.id } } }
+              ]
+            },
+            select: { id: true }
+          });
+          agentId = foundAgent ? foundAgent.id : null;
+        }
       }
 
       if (!agentId) {
-        return reply.status(401).send({
-          error: "Unauthorized",
-          details: "No valid agent identification found.",
+        return reply.status(403).send({
+          success: false,
+          error: "Forbidden",
+          details: "Access Denied: Could not locate a valid Agent ID match for your request credentials.",
         });
       }
 
-      // FIX: Updated all database fields to camelCase (agentId, totalAmount, fullName)
+   
       const [stats, statusCounts, recentTransactions] = await Promise.all([
         prisma.transaction.aggregate({
           where: { agentId: agentId },
@@ -141,12 +164,64 @@ export class BillController {
         },
         recentTransactions: recentTransactions || [],
       });
+
     } catch (error: any) {
       console.error("Dashboard Controller Error:", error);
       return reply.status(500).send({
         error: "Internal Server Error",
         details: error.message,
       });
+    }
+  };
+
+  processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const result = await this.agentService.confirmPayment(
+        request.body as any,
+      );
+      return reply.send(result);
+    } catch (error: any) {
+      return reply.status(400).send({ success: false, message: error.message });
+    }
+  };
+
+  getAgentReport = async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const reqAny = request as any;
+      let agentId = reqAny.agent?.id || reqAny.user?.agentId;
+
+      if (!agentId && reqAny.user?.id) {
+        const agentLookup = await prisma.agent.findFirst({
+          where: { users: { some: { id: reqAny.user.id } } },
+          select: { id: true }
+        });
+        agentId = agentLookup?.id;
+      }
+
+      if (!agentId) {
+        return reply.status(403).send({ status: "ERROR", message: "Unauthorized: No valid Agent identity context found." });
+      }
+
+      const { fromDate, toDate } = request.query as {
+        fromDate?: string;
+        toDate?: string;
+      };
+
+      const report = await this.agentService.getFullReport({
+        agentId,
+        fromDate,
+        toDate,
+      });
+
+      return reply.send({
+        status: "SUCCESS",
+        agent_name: reqAny.agent?.name || "Agent Terminal",
+        data: report,
+      });
+    } catch (error: any) {
+      return reply
+        .status(400)
+        .send({ status: "ERROR", message: error.message });
     }
   };
 }

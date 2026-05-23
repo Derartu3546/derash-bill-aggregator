@@ -8,15 +8,32 @@ export class PrismaAgentRepository implements IAgentRepository {
       data.id,
       data.name,
       data.code,
+      data.apiKey,
+      data.isActive,
       data.isEnabled,
+      data.isDeleted,
       data.createdAt,
     );
   }
 
-  async create(agent: any): Promise<Agent> {
-    const created = await prisma.agent.create({ data: agent });
-    return this.mapToEntity(created);
-  }
+async create(agent: any): Promise<Agent> {
+ 
+  const { id, name, code, apiKey, isEnabled, isDeleted } = agent;
+
+  const created = await prisma.agent.create({ 
+    data: {
+      name,
+      code,
+      apiKey,
+      isEnabled,
+      isDeleted
+      
+    } 
+  });
+  
+  return this.mapToEntity(created);
+}
+
   async findByCode(code: string): Promise<Agent | null> {
     const data = await prisma.agent.findUnique({
       where: {
@@ -25,11 +42,19 @@ export class PrismaAgentRepository implements IAgentRepository {
     });
     return data ? this.mapToEntity(data) : null;
   }
+
   async findById(id: string): Promise<Agent | null> {
     const data = await prisma.agent.findUnique({
       where: {
         id,
       },
+    });
+    return data ? this.mapToEntity(data) : null;
+  }
+
+  async findByApiKey(apiKey: string): Promise<Agent | null> {
+    const data = await prisma.agent.findUnique({ 
+      where: { apiKey } 
     });
     return data ? this.mapToEntity(data) : null;
   }
@@ -41,7 +66,8 @@ export class PrismaAgentRepository implements IAgentRepository {
   }): Promise<Agent[]> {
     const skip = (params.page - 1) * params.limit;
 
-    return await prisma.agent.findMany({
+    // 1. Fetch raw data records
+    const records = await prisma.agent.findMany({
       where: {
         isDeleted: false, 
         ...(params.search && {
@@ -54,6 +80,9 @@ export class PrismaAgentRepository implements IAgentRepository {
       skip,
       take: params.limit,
     });
+
+    // 🔑 THE FIX: Map the array of raw DB data objects into your Domain Entity instances
+    return records.map((record) => this.mapToEntity(record));
   }
 
   async update(agent: Agent): Promise<Agent> {
@@ -62,6 +91,7 @@ export class PrismaAgentRepository implements IAgentRepository {
       data: {
         name: agent.name,
         code: agent.code,
+        apiKey: agent.apiKey, // 💡 Added to make sure apiKey isn't lost or mismatched on updates
         isEnabled: agent.isEnabled,
         isDeleted: agent.isDeleted
       },
