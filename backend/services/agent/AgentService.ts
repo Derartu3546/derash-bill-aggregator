@@ -26,14 +26,17 @@ export class AgentService {
 if (bill.status === BillStatus.PAID) {
   return {
     success: true, // Mark as successful request
-    is_paid: true, // Custom flag for UI
-    message: "This bill has already been settled.",
     customer_name: bill.customer?.fullName || bill.customerName || "N/A",
     biller_name: bill.biller.name,
+    status: "PAID", // 👈 Ensure this is "PAID"
     amount_due: 0,
+    late_penalty: 0,
     total_to_pay: 0,
-    status: "PAID",
+    is_paid: true,   // 👈 Add this flag for the UI
+    is_blocked: true, // 👈 Block payment attempts
+    due_date: bill.dueDate.toISOString().split("T")[0],
     currency: bill.currency,
+    allows_partial: false,
   };
 }
     
