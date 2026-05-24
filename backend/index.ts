@@ -31,7 +31,7 @@ fastify.register(cors, {
   origin: ["https://derash-frontend.vercel.app", "http://localhost:5173"],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization", "x-admin-secret", "Cookie"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-admin-secret","x-agent-code", "Cookie"],
 });
 fastify.register(fastifyCookie, {
   secret: "4dr0srh-ecet-ky-s2a2ee",

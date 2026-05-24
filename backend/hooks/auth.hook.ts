@@ -4,7 +4,7 @@ import { prisma } from '../config/prisma';
 
 export async function authenticateSession(request: FastifyRequest, reply: FastifyReply) {
   try {
-    // Standardizing on 'access_token' cookie. Change to 'token' if your frontend uses that.
+    
     const token = request.cookies.access_token || request.cookies.token;
 
     if (!token) {
