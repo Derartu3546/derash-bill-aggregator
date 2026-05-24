@@ -120,9 +120,15 @@ const actualDebt =
           );
         }
 
-        if (paymentAmount > calc.totalRequired + 0.05)
-          throw new Error("Overpayment not allowed.");
+        console.log(
+          `Debug Payment: Received=${paymentAmount}, Required=${calc.totalRequired}`,
+        );
 
+        if (paymentAmount > calc.totalRequired + 0.1) {
+          throw new Error(
+            `Overpayment not allowed. Expected ${calc.totalRequired}, got ${paymentAmount}`,
+          );
+        }
         if (paymentAmount <= calc.penaltyFee) {
           throw new Error(
             `Payment must exceed penalty fee of ${calc.penaltyFee} ${bill.currency}`,
