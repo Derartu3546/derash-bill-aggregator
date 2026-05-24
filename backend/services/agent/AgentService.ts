@@ -109,8 +109,20 @@ const actualDebt =
         if (!bill || bill.status === BillStatus.PAID)
           throw new Error("Bill settled or not found.");
 
+        if (
+          Number(bill.remainingBalance) <= 0 &&
+          bill.status === BillStatus.UNPAID
+        ) {
+          (bill as any).remainingBalance = bill.amount;
+        }
         const calc = BillingEngine.calculate(bill);
         const paymentAmount = Number(data.amount);
+
+        if (paymentAmount > calc.totalRequired + 0.1) {
+          throw new Error(
+            `Overpayment not allowed. Expected ${calc.totalRequired}, got ${paymentAmount}`,
+          );
+        }
 
         if (calc.isBlocked) throw new Error(calc.blockReason);
 
