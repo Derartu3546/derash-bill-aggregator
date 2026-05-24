@@ -120,7 +120,7 @@ const actualDebt =
           );
         }
 
-        if (paymentAmount > calc.totalRequired)
+        if (paymentAmount > calc.totalRequired + 0.05)
           throw new Error("Overpayment not allowed.");
 
         if (paymentAmount <= calc.penaltyFee) {
@@ -147,7 +147,7 @@ const currentBalance =
   Number(bill.remainingBalance) > 0
     ? Number(bill.remainingBalance)
     : Number(bill.amount);
-        const newRemaining = Number(bill.remainingBalance) - principalPaid;
+        const newRemaining = currentBalance - principalPaid;
         const isSettled = newRemaining <= 0.05;
 
         await tx.bill.update({
