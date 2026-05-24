@@ -142,7 +142,10 @@ const actualDebt =
           },
           include: { agent: true },
         });
-
+const currentBalance =
+  Number(bill.remainingBalance) > 0
+    ? Number(bill.remainingBalance)
+    : Number(bill.amount);
         const newRemaining = Number(bill.remainingBalance) - principalPaid;
         const isSettled = newRemaining <= 0;
 
@@ -151,7 +154,7 @@ const actualDebt =
           data: {
             status: isSettled ? BillStatus.PAID : BillStatus.PARTIALLY_PAID,
             amountPaid: Number(bill.amountPaid) + principalPaid,
-            remainingBalance: newRemaining,
+            remainingBalance: isSettled ? 0 : newRemaining,
             paidAt: isSettled ? new Date() : undefined,
           },
         });
