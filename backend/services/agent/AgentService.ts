@@ -20,9 +20,23 @@ export class AgentService {
         include: { biller: true, customer: true },
       });
 
-      if (!bill || bill.status === BillStatus.PAID) {
-        throw new Error("No unpaid bill found with the provided reference.");
+      if (!bill) {
+        throw new Error("No bill found with the provided reference.");
       }
+if (bill.status === BillStatus.PAID) {
+  return {
+    success: true, // Mark as successful request
+    is_paid: true, // Custom flag for UI
+    message: "This bill has already been settled.",
+    customer_name: bill.customer?.fullName || bill.customerName || "N/A",
+    biller_name: bill.biller.name,
+    amount_due: 0,
+    total_to_pay: 0,
+    status: "PAID",
+    currency: bill.currency,
+  };
+}
+    
 const actualDebt =
   Number(bill.remainingBalance) <= 0 && bill.status === "UNPAID"
     ? Number(bill.amount)
@@ -40,7 +54,6 @@ const actualDebt =
       }
 
       return {
-        // ✅ FIX: fallback to bill.customerName if no linked customer
         customer_name: bill.customer?.fullName || bill.customerName || "N/A",
         biller_name: bill.biller.name,
         status: calc.effectiveStatus,
