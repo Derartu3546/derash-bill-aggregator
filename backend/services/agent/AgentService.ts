@@ -28,6 +28,11 @@ const actualDebt =
     : Number(bill.remainingBalance);
       const calc = BillingEngine.calculate(bill);
 
+      const displayAmount =
+        Number(bill.remainingBalance) === 0 && bill.status === "UNPAID"
+          ? Number(bill.amount)
+          : Number(calc.remainingDebt);
+
       let warningMessage = calc.blockReason || null;
       if (!warningMessage && calc.isWithinGracePeriod) {
         warningMessage = `Grace Period Active: ${calc.graceDaysRemaining} day(s) remaining.`;
@@ -42,7 +47,7 @@ const actualDebt =
         late_penalty: calc.penaltyFee,
         warning: warningMessage,
         is_blocked: calc.isBlocked,
-        total_to_pay: calc.totalRequired,
+        total_to_pay: displayAmount + calc.penaltyFee,
         due_date: bill.dueDate.toISOString().split("T")[0],
         currency: bill.currency,
         bill_id: bill.id,
