@@ -22,7 +22,10 @@ export class AgentService {
       if (!bill || bill.status === BillStatus.PAID) {
         throw new Error("No unpaid bill found with the provided reference.");
       }
-
+const actualDebt =
+  Number(bill.remainingBalance) <= 0 && bill.status === "UNPAID"
+    ? Number(bill.amount)
+    : Number(bill.remainingBalance);
       const calc = BillingEngine.calculate(bill);
 
       let warningMessage = calc.blockReason || null;
@@ -35,7 +38,7 @@ export class AgentService {
         customer_name: bill.customer?.fullName || bill.customerName || "N/A",
         biller_name: bill.biller.name,
         status: calc.effectiveStatus,
-        amount_due: calc.remainingDebt,
+        amount_due: actualDebt > 0 ? actualDebt : calc.remainingDebt,
         late_penalty: calc.penaltyFee,
         warning: warningMessage,
         is_blocked: calc.isBlocked,
