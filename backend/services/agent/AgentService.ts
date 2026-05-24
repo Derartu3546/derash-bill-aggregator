@@ -1,6 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { BillStatus, PaymentMethod, TransactionStatus } from "@prisma/client";
 import { BillingEngine } from "../BillingEngine";
+import { success } from "zod/mini";
 
 export class AgentService {
   async inquiry(billReference: string, agentCode: string) {
@@ -147,7 +148,7 @@ const currentBalance =
     ? Number(bill.remainingBalance)
     : Number(bill.amount);
         const newRemaining = Number(bill.remainingBalance) - principalPaid;
-        const isSettled = newRemaining <= 0;
+        const isSettled = newRemaining <= 0.05;
 
         await tx.bill.update({
           where: { id: bill.id },
@@ -160,6 +161,7 @@ const currentBalance =
         });
 
         return {
+          success: true,
           message: isSettled
             ? "Full Payment Successful"
             : "Partial Payment Successful",
