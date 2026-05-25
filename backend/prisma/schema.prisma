@@ -44,7 +44,6 @@ enum UserRole {
   BILLER_ADMIN
 }
 
-
 // --- MODELS ---
 
 model UserSettings {
@@ -99,15 +98,17 @@ model User {
 }
 
 model Notification {
-  id          String   @id @default(uuid())
-  userId      String   // The ID of the Admin who should receive it
-  title       String
-  message     String
-  type        String   // e.g., "BILL_UPLOADED", "SYSTEM_ALERT"
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  billerId  String?
+  title     String
+  message   String
+  type      String // e.g., "BILL_UPLOADED", "SYSTEM_ALERT"
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+  biller Biller? @relation(fields: [billerId], references: [id])
 }
 
 model Biller {
@@ -124,10 +125,11 @@ model Biller {
   isDeleted      Boolean   @default(false)
   deletedAt      DateTime?
 
-  users     User[]
-  bills     Bill[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  users         User[]
+  bills         Bill[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([code])
 }
@@ -261,14 +263,14 @@ model AuditLog {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(uuid())
+  token  String @unique
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   //  Metadata Fields for Security
-  userAgent String?  // Stores browser/device info
-  ipAddress String?  // Stores the login location IP
+  userAgent String? // Stores browser/device info
+  ipAddress String? // Stores the login location IP
 
   expiresAt DateTime
   createdAt DateTime @default(now())
