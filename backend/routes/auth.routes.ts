@@ -300,11 +300,11 @@ export async function authRoutes(fastify: FastifyInstance) {
     try {
       console.log(`📨 Dispatching via Brevo API to: ${email}`);
 
-      // We use Brevo's HTTP API (Port 443) to bypass Render's firewall
+      
       await axios.post(
         "https://api.brevo.com/v3/smtp/email",
         {
-          sender: { name: "Derash Support", email: "noreply@derash.gov.et" },
+          sender: { name: "Derash Support", email: "ekramasrar94@gmail.com" },
           to: [{ email: email }],
           subject: "Reset Your Derash Password",
           htmlContent: `
