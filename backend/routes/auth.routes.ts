@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import axios from 'axios';
 import { RegisterUserUseCase } from "../services/auth/RegisterUserUseCase";
 import { PrismaUserRepository } from "../models/PrismaUserRepository";
 import { LoginUseCase } from "../services/auth/LoginUseCase";
@@ -297,50 +298,46 @@ export async function authRoutes(fastify: FastifyInstance) {
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     try {
-      const nodemailer = require("nodemailer");
-      const transporter = nodemailer.createTransport({
-        host: "sandbox.smtp.mailtrap.io",
-        port: 2525,
-        secure: true,
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-      });
-      console.log(`📨 Attempting to dispatch reset email to: ${email}`);
+      console.log(`📨 Dispatching via Brevo API to: ${email}`);
 
-      await transporter.sendMail({
-        from: '"Derash Support" <noreply@derash.gov.et>',
-        to: email,
-        subject: "Reset Your Derash Password",
-        html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;">
+      // We use Brevo's HTTP API (Port 443) to bypass Render's firewall
+      await axios.post(
+        "https://api.brevo.com/v3/smtp/email",
+        {
+          sender: { name: "Derash Support", email: "noreply@derash.gov.et" },
+          to: [{ email: email }],
+          subject: "Reset Your Derash Password",
+          htmlContent: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
               <h2 style="color: #ef4444; text-align: center;">Derash Bill Aggregator</h2>
               <p>Hello,</p>
-              <p>We received a request to reset your password. Click the button below to proceed:</p>
+              <p>Click the button below to reset your password. This link expires in 60 minutes.</p>
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${resetLink}" style="background-color: #ef4444; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                <a href="${resetLink}" style="background-color: #ef4444; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                   Reset My Password
                 </a>
               </div>
-              <p style="font-size: 12px; color: #666;">This link will expire in 60 minutes. If you didn't request this, you can ignore this email.</p>
             </div>
           `,
-      });
-console.log(`✅ Mail successfully delivered to ${email}`);
-      return {
-        status: "SUCCESS",
-        message: "If that email exists, you will receive a reset link shortly.",
-        ...(process.env.NODE_ENV === "development" && { resetToken }),
-      };
-    } catch (error) {
-      console.error("Mailer Error:", error);
+        },
+        {
+          headers: {
+            "api-key": process.env.BREVO_API_KEY, // Set this in Render Dashboard
+            "content-type": "application/json",
+          },
+        },
+      );
+
+      console.log(`✅ Mail successfully sent to ${email} via Brevo`);
+      return { status: "SUCCESS", message: "Reset link sent." };
+    } catch (error: any) {
+      console.error(
+        "❌ Brevo API Error:",
+        error.response?.data || error.message,
+      );
       return reply.status(500).send({
         status: "ERROR",
-        message: "Failed to dispatch email. Check server logs.",
+        message: "Failed to dispatch email via API.",
       });
     }
   });
