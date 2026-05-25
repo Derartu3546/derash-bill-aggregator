@@ -299,15 +299,15 @@ export async function authRoutes(fastify: FastifyInstance) {
     try {
       const nodemailer = require("nodemailer");
       const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
+        host: "sandbox.smtp.mailtrap.io",
+        port: 2525,
         secure: true,
         service: "gmail",
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
         },
-        connectionTimeout: 10000, 
+        connectionTimeout: 10000,
         greetingTimeout: 10000,
       });
       console.log(`📨 Attempting to dispatch reset email to: ${email}`);
