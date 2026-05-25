@@ -12,6 +12,7 @@ import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
 import { ChangePasswordUseCase } from "../services/auth/ChangePasswordUseCase";
 import { ResetPasswordUseCase } from "../services/auth/ResetPasswordUseCase";
 
+
 const userRespo = new PrismaUserRepository();
 const registerUseCase = new RegisterUserUseCase(userRespo);
 const loginUseCase = new LoginUseCase(userRespo);
@@ -298,11 +299,16 @@ export async function authRoutes(fastify: FastifyInstance) {
     try {
       const nodemailer = require("nodemailer");
       const transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
         service: "gmail",
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
         },
+        connectionTimeout: 10000, 
+        greetingTimeout: 10000,
       });
       console.log(`📨 Attempting to dispatch reset email to: ${email}`);
 
