@@ -7,8 +7,6 @@ import { AdminDataController } from "../controllers/admin/AdminDataController";
 import { NotificationController } from "../controllers/admin/NotificationController";
 
 import crypto from "crypto";
-import nodemailer from "nodemailer";
-
 import { authenticateSession } from "../hooks/auth.hook";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
 import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
@@ -261,65 +259,4 @@ export async function adminRoutes(fastify: FastifyInstance) {
       };
     },
   );
-  fastify.post("/auth/forgot-password", async (request, reply) => {
-    const { email } = request.body as { email: string };
-
-    // 1. Find user by email
-    const user = await userRespo.findByEmail(email);
-
-    // Security Best Practice: Don't tell hackers if the email exists or not
-    if (!user) {
-      return {
-        status: "SUCCESS",
-        message:
-          "If an account exists with this email, a reset link has been sent.",
-      };
-    }
-
-    // 2. Generate a secure token (Longer is better for public links)
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
-
-    await userRespo.updateResetToken(user.id, resetToken, expiresAt);
-
-    // 3. Create the Reset Link (Replace with your Vercel URL)
-    const resetLink = `https://derash-admin.vercel.app/reset-password?token=${resetToken}`;
-
-    // 4. Send the Email
-    try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
-      await transporter.sendMail({
-        from: '"Derash System" <noreply@derash.gov.et>',
-        to: email,
-        subject: "Reset Your Derash Password",
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; text-align: center;">
-            <h2 style="color: #ef4444;">Password Reset Request</h2>
-            <p>You requested to reset your password for the Derash Bill Aggregator.</p>
-            <p>Click the button below to set a new password. This link expires in 30 minutes.</p>
-            <a href="${resetLink}" style="background: #ef4444; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-              Reset Password
-            </a>
-            <p style="margin-top: 20px; font-size: 12px; color: #666;">
-              If you didn't request this, you can safely ignore this email.
-            </p>
-          </div>
-        `,
-      });
-
-      return {
-        status: "SUCCESS",
-        message: "Check your email for the reset link.",
-      };
-    } catch (error) {
-      console.error("Public Mail Error:", error);
-      return reply.status(500).send({ message: "System error sending email" });
-    }
-  });
 }
