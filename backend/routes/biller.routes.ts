@@ -1,4 +1,8 @@
 import { FastifyInstance } from "fastify";
+import fs from 'fs';
+import path from 'path';
+import { pipeline } from "stream/promises";
+import { parseFile } from "../shared/utils/fileParser";
 import { CreateBillerUseCase } from "../services/biller/CreateBillerUseCase";
 import { PrismaBillerRepository } from "../models/PrismaBillerRepository";
 import { IngestBillUseCase } from "../services/biller/IngestBillUseCase";
@@ -193,6 +197,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const user = (request as any).user;
+      let filePath: string | undefined;
 
       try {
         let targetBillerId: string;
@@ -236,9 +241,19 @@ export async function billerRoutes(fastify: FastifyInstance) {
 
         const data = await request.file();
         if (!data) {
-          return reply.status(400).send(ApiResponse.error("No CSV uploaded"));
+          return reply.status(400).send(ApiResponse.error("No file uploaded"));
         }
 
+        // 1 Save file to a temporary location 
+        const tempDir = path.join(__dirname, "../../uploads/temp");
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        const filePath = path.join(tempDir, `${Date.now()}-${data.filename}`);
+
+        await pipeline(data.file, fs.createWriteStream(filePath));
+
+        const rawBills = await parseFile(filePath);
+const validationErrors: string[] = [];
+const finalBills: any[] = [];
         // UI FALLBACK VALUES
 
         const uiPeriod = (data.fields.period as any)?.value?.toString().trim();
@@ -246,12 +261,6 @@ export async function billerRoutes(fastify: FastifyInstance) {
           ?.toString()
           .trim();
         const uiDueDate = uiDueDateRaw ? new Date(uiDueDateRaw) : null;
-
-        const buffer = await data.toBuffer();
-        const rawBills = await parseCsv(buffer);
-
-        const validationErrors: string[] = [];
-        const finalBills: any[] = [];
 
         rawBills.forEach((row: any, index: number) => {
           const { bill, errors } = CsvMapper.toBill(row, targetBillerId, {
@@ -314,6 +323,10 @@ export async function billerRoutes(fastify: FastifyInstance) {
             : 500;
 
         return reply.status(statusCode).send(ApiResponse.error(e.message));
+      } finally {
+        if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
       }
     },
   );

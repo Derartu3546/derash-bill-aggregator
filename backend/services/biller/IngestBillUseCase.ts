@@ -2,6 +2,7 @@ import { IBillRepository } from "../../models/IBillRepository";
 import { prisma } from "../../config/prisma";
 import { NotificationService } from "../../shared/NotificationService";
 import { BillStatus } from "@prisma/client";
+import { parseFile } from "../../shared/utils/fileParser";
 
 interface IngestionFallbacks {
   period?: string;
