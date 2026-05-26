@@ -244,7 +244,7 @@ export async function billerRoutes(fastify: FastifyInstance) {
           return reply.status(400).send(ApiResponse.error("No file uploaded"));
         }
 
-        // 1 Save file to a temporary location 
+        // 1 Save file to a temporary location
         const tempDir = path.join(__dirname, "../../uploads/temp");
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
         const filePath = path.join(tempDir, `${Date.now()}-${data.filename}`);
@@ -252,8 +252,8 @@ export async function billerRoutes(fastify: FastifyInstance) {
         await pipeline(data.file, fs.createWriteStream(filePath));
 
         const rawBills = await parseFile(filePath);
-const validationErrors: string[] = [];
-const finalBills: any[] = [];
+        const validationErrors: string[] = [];
+        const finalBills: any[] = [];
         // UI FALLBACK VALUES
 
         const uiPeriod = (data.fields.period as any)?.value?.toString().trim();
@@ -265,14 +265,14 @@ const finalBills: any[] = [];
         rawBills.forEach((row: any, index: number) => {
           const { bill, errors } = CsvMapper.toBill(row, targetBillerId, {
             period: uiPeriod,
-            dueDate: uiDueDate
+            dueDate: uiDueDate,
           });
           if (errors.length > 0) {
             validationErrors.push(`Row ${index + 2}: ${errors.join(", ")}`);
           } else if (bill) {
             finalBills.push(bill);
           }
-          });
+        });
         if (validationErrors.length > 0) {
           const errorMessage = `FILE VALIDATION FAILED:\n${validationErrors.slice(0, 10).join("\n")}${validationErrors.length > 10 ? "\n...and more" : ""}`;
           return reply.status(400).send(ApiResponse.error(errorMessage));
@@ -325,8 +325,8 @@ const finalBills: any[] = [];
         return reply.status(statusCode).send(ApiResponse.error(e.message));
       } finally {
         if (filePath && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+          fs.unlinkSync(filePath);
+        }
       }
     },
   );
@@ -340,7 +340,6 @@ const finalBills: any[] = [];
       return { status: "SUCCESS", data: stats };
     },
   );
-
 
   fastify.get(
     "/billers",
@@ -369,7 +368,6 @@ const finalBills: any[] = [];
     },
   );
 
-  
   fastify.get(
     "/bills",
     { preHandler: [authenticateSession] },
@@ -377,12 +375,12 @@ const finalBills: any[] = [];
       const user = (request as any).user;
       const bills = await billRepo.findByBillerId(user.billerId);
 
-      const formattedData = bills.map((b:Bill) => {
+      const formattedData = bills.map((b: Bill) => {
         const due = Number(b.amount || 0);
-          let paid = Number(b.amountPaid || 0);  
-          if (b.status === 'PAID') {
-              paid = due;
-          }
+        let paid = Number(b.amountPaid || 0);
+        if (b.status === "PAID") {
+          paid = due;
+        }
         return {
           id: b.id,
           bill_reference: b.billReference,
@@ -390,7 +388,7 @@ const finalBills: any[] = [];
           period: b.period,
           amount_due: due,
           amount_paid: paid,
-          remaining_bal: due - paid, 
+          remaining_bal: due - paid,
           status: b.status,
           createdAt: b.createdAt,
         };
@@ -415,48 +413,97 @@ const finalBills: any[] = [];
       return { status: "SUCCESS", data: result };
     },
   );
-  fastify.put('/billers/:id', { preHandler: [authenticateSession] }, async (request, reply) => {
-    try {
-      const { id } = request.params as any;
-      const validatedData = UpdateBillerSchema.parse(request.body);
-      
+  fastify.put(
+    "/billers/:id",
+    { preHandler: [authenticateSession] },
+    async (request, reply) => {
+      try {
+        const { id } = request.params as any;
+        const validatedData = UpdateBillerSchema.parse(request.body);
 
-      const biller = await billerRepo.update(id, validatedData);
-      await createAuditUseCase.execute({
-        userId: (request as any).user.id,
-        userEmail: (request as any).user.email,
-        action: "UPDATE",
-        entityName: "Biller",
-        entityId: id,
-        newValues: validatedData,
-        ipAddress: request.ip,
-        status: "SUCCESS",
+        const biller = await billerRepo.update(id, validatedData);
+        await createAuditUseCase.execute({
+          userId: (request as any).user.id,
+          userEmail: (request as any).user.email,
+          action: "UPDATE",
+          entityName: "Biller",
+          entityId: id,
+          newValues: validatedData,
+          ipAddress: request.ip,
+          status: "SUCCESS",
+        });
+        return { status: "SUCCESS", data: biller };
+      } catch (e: any) {
+        return reply.status(500).send({ status: "FAILED", message: e.message });
+      }
+    },
+  );
+
+  fastify.delete(
+    "/billers/:id",
+    { preHandler: [authenticateSession] },
+    async (request, reply) => {
+      try {
+        const { id } = request.params as any;
+
+        await billerRepo.delete(id);
+
+        await createAuditUseCase.execute({
+          userId: (request as any).user.id,
+          userEmail: (request as any).user.email,
+          action: "DELETE",
+          entityName: "Biller",
+          entityId: id,
+          newValues: {},
+          ipAddress: request.ip,
+          status: "SUCCESS",
+        });
+        return { status: "SUCCESS", message: "Biller deleted successfully" };
+      } catch (e: any) {
+        return reply.status(500).send({ status: "FAILED", message: e.message });
+      }
+    },
+  );
+
+  // DELETE /bills/:id - Soft delete a single bill
+  fastify.delete(
+    "/bills/:id",
+    { preHandler: [authenticateSession] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      await prisma.bill.update({
+        where: { id },
+        data: { isDeleted: true, deletedAt: new Date() },
       });
-      return { status: "SUCCESS", data: biller }
-    } catch (e: any) {
-      return reply.status(500).send({ status: 'FAILED', message: e.message });
-    }
-  });
 
-  fastify.delete("/billers/:id", { preHandler: [authenticateSession] }, async (request, reply) => {
-    try {
-      const { id } = request.params as any;
+      return { status: "SUCCESS", message: "Bill moved to trash" };
+    },
+  );
 
-      await billerRepo.delete(id);
+  // DELETE /bills/all - Soft delete all bills for the authenticated biller
+  fastify.delete(
+    "/bills/all",
+    { preHandler: [authenticateSession] },
+    async (request, reply) => {
+      const user = (request as any).user;
 
-      await createAuditUseCase.execute({
-        userId: (request as any).user.id,
-        userEmail: (request as any).user.email,
-        action: "DELETE",
-        entityName: "Biller",
-        entityId: id,
-        newValues: {},
-        ipAddress: request.ip,
-        status: "SUCCESS",
+      const result = await prisma.bill.updateMany({
+        where: {
+          billerId: user.billerId,
+          isDeleted: false,
+        },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
       });
-return {status: "SUCCESS", message: "Biller deleted successfully" }
-    } catch (e: any) {
-      return reply.status(500).send({ status: 'FAILED', message: e.message });
-    }
-  })
+
+      return {
+        status: "SUCCESS",
+        message: `Successfully moved ${result.count} bills to trash`,
+      };
+    },
+  );
+  
 }

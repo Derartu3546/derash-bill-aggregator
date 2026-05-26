@@ -162,7 +162,10 @@ export class PrismaBillRepository implements IBillRepository {
 
   async findByBillerId(billerId: string) {
     return await prisma.bill.findMany({
-      where: { billerId: billerId },
+      where: {
+        billerId: billerId,
+        isDeleted: false,
+      },
       orderBy: { createdAt: "desc" },
       include: {
         transactions: true,
