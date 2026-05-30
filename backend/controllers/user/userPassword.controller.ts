@@ -4,7 +4,9 @@ import { updatePasswordSchema } from "../../shared/validators/password.validator
 import { ApiResponse } from "../../shared/utils/ApiResponse";
 import { AuditService } from "../../services/AuditService";
 
+
 const updatePasswordUseCase = new UpdatePasswordUseCase();
+
 
 export const updatePasswordFromSettingsHandler = async (
   request: FastifyRequest,

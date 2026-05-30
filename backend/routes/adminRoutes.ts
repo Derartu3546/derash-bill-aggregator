@@ -246,6 +246,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       message: "Give this token to the user. It expires in 1 hour.",
     };
   });
+  
   fastify.get("/notifications", NotificationController.getMyNotifications);
   fastify.patch("/notifications/:id/read", NotificationController.markAsRead);
 }

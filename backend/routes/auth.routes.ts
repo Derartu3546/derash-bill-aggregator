@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import axios from 'axios';
 import { RegisterUserUseCase } from "../services/auth/RegisterUserUseCase";
 import { PrismaUserRepository } from "../models/PrismaUserRepository";
 import { LoginUseCase } from "../services/auth/LoginUseCase";
@@ -11,6 +12,7 @@ import { CreateAuditLogUseCase } from "../services/admin/CreateAuditLogUseCase";
 import { PrismaAuditRepository } from "../models/PrismaAuditRepository";
 import { ChangePasswordUseCase } from "../services/auth/ChangePasswordUseCase";
 import { ResetPasswordUseCase } from "../services/auth/ResetPasswordUseCase";
+
 
 const userRespo = new PrismaUserRepository();
 const registerUseCase = new RegisterUserUseCase(userRespo);
@@ -131,18 +133,21 @@ export async function authRoutes(fastify: FastifyInstance) {
             throw new Error("Failed to generate authentication tokens");
           }
 
+          // ✅ Conditional cookie security – works for localhost (self‑signed HTTPS) and production
+          const origin = request.headers.origin || '';
+          const isLocal = origin.includes('localhost');
           reply.setCookie("access_token", accessToken, {
             path: "/",
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
+            secure: !isLocal,          // false for localhost, true otherwise
+            sameSite: isLocal ? "lax" : "none",
             maxAge: 900,
           });
           reply.setCookie("refresh_token", refreshToken, {
             httpOnly: true,
             path: "/api/v1/auth/refresh",
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
+            secure: !isLocal,
+            sameSite: isLocal ? "lax" : "none",
             maxAge: 604800,
           });
           return ApiResponse.success({ user: result.user }, "Login successful");
@@ -169,7 +174,6 @@ export async function authRoutes(fastify: FastifyInstance) {
         const oldToken = request.cookies.refresh_token;
 
         if (!oldToken) return reply.status(401).send({ message: 'No refresh session' });
-        // Find token in DB
         const savedToken = await userRespo.findRefreshToken(oldToken);
 
         if (!savedToken) {
@@ -186,24 +190,27 @@ export async function authRoutes(fastify: FastifyInstance) {
         const newAccessToken = jwt.sign({ id: savedToken.user.id, role: savedToken.user.role }, process.env.JWT_SECRET!, { expiresIn: '15m' });
         const newRefreshToken = crypto.randomBytes(40).toString('hex');
 
-        // ✅ FIX: saveRefreshToken expects only 3 arguments (userId, token, expiresAt)
         await userRespo.saveRefreshToken(
             savedToken.user.id, 
             newRefreshToken, 
             new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         );
 
+        // ✅ Same conditional cookie logic for refresh endpoint
+        const origin = request.headers.origin || '';
+        const isLocal = origin.includes('localhost');
         reply.setCookie("access_token", newAccessToken, {
           path: "/",
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          secure: !isLocal,
+          sameSite: isLocal ? "lax" : "none",
           maxAge: 900,
         });
         reply.setCookie("refresh_token", newRefreshToken, {
             path: "/api/v1/auth/refresh",
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: !isLocal,
+            sameSite: isLocal ? "lax" : "none",
             maxAge: 604800,
         });
 
@@ -257,6 +264,84 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
     });
 
+    // ========== FORGOT PASSWORD ==========
+  fastify.post("/auth/forgot-password", {
+      schema: {
+        description: "Request a password reset token",
+        tags: ["Authentication"],
+        body: {
+          type: "object",
+          required: ["email"],
+          properties: {
+            email: { type: "string", format: "email" }
+          }
+        }
+      }
+  }, async (request, reply) => {
+    
+    const { email } = request.body as { email: string };
+
+    const user = await userRespo.findByEmail(email);
+    if (!user) {
+      return {
+        status: "SUCCESS",
+        message: "If that email exists, you will receive a reset link shortly.",
+      };
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await userRespo.updateResetToken(user.id, resetToken, expiresAt);
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    try {
+      console.log(`📨 Dispatching via Brevo API to: ${email}`);
+
+      
+      await axios.post(
+        "https://api.brevo.com/v3/smtp/email",
+        {
+          sender: { name: "Derash Support", email: "ekramasrar94@gmail.com" },
+          to: [{ email: email }],
+          subject: "Reset Your Derash Password",
+          htmlContent: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
+              <h2 style="color: #ef4444; text-align: center;">Derash Bill Aggregator</h2>
+              <p>Hello,</p>
+              <p>Click the button below to reset your password. This link expires in 60 minutes.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetLink}" style="background-color: #ef4444; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                  Reset My Password
+                </a>
+              </div>
+            </div>
+          `,
+        },
+        {
+          headers: {
+            "api-key": process.env.BREVO_API_KEY, // Set this in Render Dashboard
+            "content-type": "application/json",
+          },
+        },
+      );
+
+      console.log(`✅ Mail successfully sent to ${email} via Brevo`);
+      return { status: "SUCCESS", message: "Reset link sent." };
+    } catch (error: any) {
+      console.error(
+        "❌ Brevo API Error:",
+        error.response?.data || error.message,
+      );
+      return reply.status(500).send({
+        status: "ERROR",
+        message: "Failed to dispatch email via API.",
+      });
+    }
+  });
+
     fastify.post("/auth/reset-password", async (request, reply) => {
         const { token, newPassword } = request.body as any;
 
@@ -264,7 +349,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             await resetPasswordUseCase.execute(token, newPassword);
             return { status: "SUCCESS", message: "Password reset successful. You can now login." };
         } catch (e: any) {
-            return reply.status(400).send({ status: "FAILED" , message: e.message});
+            return reply.status(400).send({ status: "FAILED" , message: e.message });
         }
     });
 }

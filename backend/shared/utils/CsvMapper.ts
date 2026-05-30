@@ -44,6 +44,20 @@ export class CsvMapper {
       .trim();
     const customerName =
       (row.customerName || row.Customer || row.Name)?.toString().trim() || null;
+    
+    const parseSafeDate = (val: any): Date | null => {
+      if (!val) return null;
+      if (val instanceof Date) return val;
+
+      // If it's a number (Excel Serial), convert it
+      if (typeof val === "number") {
+        return new Date((val - (25567 + 2)) * 86400 * 1000);
+      }
+
+      // If it's a string, try parsing
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
 
     // 2. Resolve Fallbacks
     const finalPeriod = csvPeriod || uiFallback.period;

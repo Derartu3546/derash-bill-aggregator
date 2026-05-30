@@ -12,7 +12,23 @@ export class NotificationController {
             orderBy: { createdAt: 'desc' },
             take: 20
         });
-        return ApiResponse.success(notifications, "Notifications fetched.");
+
+        const billerIds: string[] = [
+            ...new Set(
+                notifications
+                    .map((n) => n.billerId)
+                    .filter((id): id is string => id !== null),
+            ),
+        ];
+        const billers = await prisma.biller.findMany({
+            where: { id: { in: billerIds } },
+        });
+
+        const enriched = notifications.map(n => ({
+            ...n,
+            biller: billers.find(b => b.id === n.billerId) || { name: 'Unknown', adminEmail: "N/A" }
+        }));
+        return ApiResponse.success(enriched, "Notifications fetched.");
     }
 
     static async markAsRead(request: FastifyRequest, reply: FastifyReply) {

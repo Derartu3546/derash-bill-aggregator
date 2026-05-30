@@ -1,6 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { BillStatus, PaymentMethod, TransactionStatus } from "@prisma/client";
 import { BillingEngine } from "../BillingEngine";
+import { success } from "zod/mini";
 
 export class AgentService {
   async inquiry(billReference: string, agentCode: string) {
@@ -19,11 +20,36 @@ export class AgentService {
         include: { biller: true, customer: true },
       });
 
-      if (!bill || bill.status === BillStatus.PAID) {
-        throw new Error("No unpaid bill found with the provided reference.");
+      if (!bill) {
+        throw new Error("No bill found with the provided reference.");
       }
-
+if (bill.status === BillStatus.PAID) {
+  return {
+    success: true, // Mark as successful request
+    customer_name: bill.customer?.fullName || bill.customerName || "N/A",
+    biller_name: bill.biller.name,
+    status: "PAID", // 👈 Ensure this is "PAID"
+    amount_due: 0,
+    late_penalty: 0,
+    total_to_pay: 0,
+    is_paid: true,   // 👈 Add this flag for the UI
+    is_blocked: true, // 👈 Block payment attempts
+    due_date: bill.dueDate.toISOString().split("T")[0],
+    currency: bill.currency,
+    allows_partial: false,
+  };
+}
+    
+const actualDebt =
+  Number(bill.remainingBalance) <= 0 && bill.status === "UNPAID"
+    ? Number(bill.amount)
+    : Number(bill.remainingBalance);
       const calc = BillingEngine.calculate(bill);
+
+      const displayAmount =
+        Number(bill.remainingBalance) === 0 && bill.status === "UNPAID"
+          ? Number(bill.amount)
+          : Number(calc.remainingDebt);
 
       let warningMessage = calc.blockReason || null;
       if (!warningMessage && calc.isWithinGracePeriod) {
@@ -31,15 +57,14 @@ export class AgentService {
       }
 
       return {
-        // ✅ FIX: fallback to bill.customerName if no linked customer
         customer_name: bill.customer?.fullName || bill.customerName || "N/A",
         biller_name: bill.biller.name,
         status: calc.effectiveStatus,
-        amount_due: calc.remainingDebt,
+        amount_due: actualDebt > 0 ? actualDebt : calc.remainingDebt,
         late_penalty: calc.penaltyFee,
         warning: warningMessage,
         is_blocked: calc.isBlocked,
-        total_to_pay: calc.totalRequired,
+        total_to_pay: displayAmount + calc.penaltyFee,
         due_date: bill.dueDate.toISOString().split("T")[0],
         currency: bill.currency,
         bill_id: bill.id,
@@ -100,8 +125,20 @@ export class AgentService {
         if (!bill || bill.status === BillStatus.PAID)
           throw new Error("Bill settled or not found.");
 
+        if (
+          Number(bill.remainingBalance) <= 0 &&
+          bill.status === BillStatus.UNPAID
+        ) {
+          (bill as any).remainingBalance = bill.amount;
+        }
         const calc = BillingEngine.calculate(bill);
         const paymentAmount = Number(data.amount);
+
+        if (paymentAmount > calc.totalRequired + 0.1) {
+          throw new Error(
+            `Overpayment not allowed. Expected ${calc.totalRequired}, got ${paymentAmount}`,
+          );
+        }
 
         if (calc.isBlocked) throw new Error(calc.blockReason);
 
@@ -111,9 +148,15 @@ export class AgentService {
           );
         }
 
-        if (paymentAmount > calc.totalRequired)
-          throw new Error("Overpayment not allowed.");
+        console.log(
+          `Debug Payment: Received=${paymentAmount}, Required=${calc.totalRequired}`,
+        );
 
+        if (paymentAmount > calc.totalRequired + 0.1) {
+          throw new Error(
+            `Overpayment not allowed. Expected ${calc.totalRequired}, got ${paymentAmount}`,
+          );
+        }
         if (paymentAmount <= calc.penaltyFee) {
           throw new Error(
             `Payment must exceed penalty fee of ${calc.penaltyFee} ${bill.currency}`,
@@ -134,21 +177,25 @@ export class AgentService {
           },
           include: { agent: true },
         });
-
-        const newRemaining = Number(bill.remainingBalance) - principalPaid;
-        const isSettled = newRemaining <= 0;
+const currentBalance =
+  Number(bill.remainingBalance) > 0
+    ? Number(bill.remainingBalance)
+    : Number(bill.amount);
+        const newRemaining = currentBalance - principalPaid;
+        const isSettled = newRemaining <= 0.05;
 
         await tx.bill.update({
           where: { id: bill.id },
           data: {
             status: isSettled ? BillStatus.PAID : BillStatus.PARTIALLY_PAID,
             amountPaid: Number(bill.amountPaid) + principalPaid,
-            remainingBalance: newRemaining,
+            remainingBalance: isSettled ? 0 : newRemaining,
             paidAt: isSettled ? new Date() : undefined,
           },
         });
 
         return {
+          success: true,
           message: isSettled
             ? "Full Payment Successful"
             : "Partial Payment Successful",
