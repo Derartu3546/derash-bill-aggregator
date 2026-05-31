@@ -174,17 +174,80 @@ export class BillController {
     }
   };
 
-  processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
+processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const result = await this.agentService.confirmPayment(
-        request.body as any,
-      );
+      const body = request.body as any;
+      const reqAny = request as any;
+
+      // 1. Discover the secure logged-in agent identity
+      let fallbackAgentId = body.agentId || body.agent_id;
+      let agentCode = request.headers["x-agent-code"] as string;
+
+      if (reqAny.agent?.id) {
+        fallbackAgentId = reqAny.agent.id;
+        agentCode = reqAny.agent.code;
+      } else if (reqAny.user?.agentId) {
+        fallbackAgentId = reqAny.user.agentId;
+      }
+
+      // If missing, look up agent data using database user contexts
+      if ((!fallbackAgentId || !agentCode) && reqAny.user?.id) {
+        const structuralAgent = await prisma.agent.findFirst({
+          where: {
+            OR: [
+              { id: reqAny.user.id },
+              { users: { some: { id: reqAny.user.id } } }
+            ]
+          },
+          select: { id: true, code: true }
+        });
+        if (structuralAgent) {
+          if (!fallbackAgentId) fallbackAgentId = structuralAgent.id;
+          if (!agentCode) agentCode = structuralAgent.code;
+        }
+      }
+
+      // Operational Guard Rails
+      if (!body.billId && !body.bill_id) {
+        return reply.status(400).send({ success: false, message: "Validation Error: Missing valid Bill Identifier context." });
+      }
+      if (!fallbackAgentId) {
+        return reply.status(400).send({ success: false, message: "Validation Error: Missing valid Agent identity session context." });
+      }
+
+      // 2. AUTOMATIC INFERENCE: Extract cleanly from the agent's code profile identifier 
+      // If code is "CBE-1001", default derived value automatically splits down to "CBE"
+      let inferredMethod = "CASH"; 
+      if (agentCode) {
+        const upperCode = agentCode.toUpperCase();
+        if (upperCode.startsWith("CBE")) inferredMethod = "CBE";
+        else if (upperCode.startsWith("TELEBIRR")) inferredMethod = "TELEBIRR";
+      }
+
+      // 3. Assemble pristine execution parameters
+      const servicePayload = {
+        billId: String(body.billId || body.bill_id),
+        agentId: String(fallbackAgentId),
+        transactionId: String(body.transactionId || body.transaction_id),
+        amount: Number(body.amount),
+        paymentMethod: inferredMethod as any, // Autocalculated seamlessly without interface exposure
+        idempotencyKey: String(body.idempotencyKey || body.idempotency_key),
+        payerPhone: body.payerPhone || body.payer_phone ? String(body.payerPhone || body.payer_phone) : "0000000000",
+      };
+
+      // Call Service Transaction Logic Engine
+      const result = await this.agentService.confirmPayment(servicePayload);
+      
       return reply.send(result);
     } catch (error: any) {
-      return reply.status(400).send({ success: false, message: error.message });
+      console.error("Payment Processing Error at Controller Level:", error.message || error);
+      return reply.status(400).send({ 
+        success: false, 
+        message: error.message || "Bad Request encountered during transaction generation execution." 
+      });
     }
   };
-
+  
   getAgentReport = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const reqAny = request as any;

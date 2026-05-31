@@ -1,7 +1,6 @@
 import { prisma } from "../../config/prisma";
 import { BillStatus, PaymentMethod, TransactionStatus } from "@prisma/client";
 import { BillingEngine } from "../BillingEngine";
-import { success } from "zod/mini";
 
 export class AgentService {
   async inquiry(billReference: string, agentCode: string) {
@@ -23,27 +22,28 @@ export class AgentService {
       if (!bill) {
         throw new Error("No bill found with the provided reference.");
       }
-if (bill.status === BillStatus.PAID) {
-  return {
-    success: true, // Mark as successful request
-    customer_name: bill.customer?.fullName || bill.customerName || "N/A",
-    biller_name: bill.biller.name,
-    status: "PAID", // 👈 Ensure this is "PAID"
-    amount_due: 0,
-    late_penalty: 0,
-    total_to_pay: 0,
-    is_paid: true,   // 👈 Add this flag for the UI
-    is_blocked: true, // 👈 Block payment attempts
-    due_date: bill.dueDate.toISOString().split("T")[0],
-    currency: bill.currency,
-    allows_partial: false,
-  };
-}
-    
-const actualDebt =
-  Number(bill.remainingBalance) <= 0 && bill.status === "UNPAID"
-    ? Number(bill.amount)
-    : Number(bill.remainingBalance);
+
+      if (bill.status === BillStatus.PAID) {
+        return {
+          success: true, 
+          customer_name: bill.customer?.fullName || bill.customerName || "N/A",
+          biller_name: bill.biller.name,
+          status: "PAID", 
+          amount_due: 0,
+          late_penalty: 0,
+          total_to_pay: 0,
+          is_paid: true,   
+          is_blocked: true, 
+          due_date: bill.dueDate.toISOString().split("T")[0],
+          currency: bill.currency,
+          allows_partial: false,
+        };
+      }
+        
+      const actualDebt =
+        Number(bill.remainingBalance) <= 0 && bill.status === "UNPAID"
+          ? Number(bill.amount)
+          : Number(bill.remainingBalance);
       const calc = BillingEngine.calculate(bill);
 
       const displayAmount =
@@ -83,7 +83,7 @@ const actualDebt =
     agentId: string;
     transactionId: string;
     amount: number;
-    paymentMethod: PaymentMethod;
+    paymentMethod: any; // Allow incoming type mappings flexibility
     idempotencyKey: string;
     payerPhone?: string;
   }) {
@@ -92,28 +92,22 @@ const actualDebt =
     });
     if (!agent) throw new Error("Unauthorized Agent.");
 
-    const isPhoneEmpty =
-      !data.payerPhone || data.payerPhone.trim().length === 0;
+    const isPhoneEmpty = !data.payerPhone || data.payerPhone.trim() === "" || data.payerPhone.trim() === " ";
     if (agent.code === "TELEBIRR" && isPhoneEmpty) {
       throw new Error("Payer phone number is required for Telebirr.");
     }
 
-    const initialTx = await prisma.transaction.create({
-      data: {
-        transactionId: data.transactionId,
-        idempotencyKey: data.idempotencyKey,
-        amount: 0,
-        totalAmount: Number(data.amount),
-        status: TransactionStatus.PENDING,
-        paymentMethod: data.paymentMethod,
-        agentId: data.agentId,
-        billId: data.billId,
-        payerPhone: data.payerPhone || " ",
-        agentShare: 0,
-        aggregatorShare: 0,
-        billerShare: 0,
-      },
-    });
+    // Safely map incoming string into real valid Prisma Enum keys
+    let safePaymentMethod: PaymentMethod = PaymentMethod.CASH;
+    if (data.paymentMethod) {
+      const upperMethod = String(data.paymentMethod).toUpperCase();
+      if (upperMethod === "CBE") safePaymentMethod = PaymentMethod.CBE;
+      else if (upperMethod === "TELEBIRR") safePaymentMethod = PaymentMethod.TELEBIRR;
+    } else if (agent.code) {
+      const upperAgent = String(agent.code).toUpperCase();
+      if (upperAgent === "CBE") safePaymentMethod = PaymentMethod.CBE;
+      else if (upperAgent === "TELEBIRR") safePaymentMethod = PaymentMethod.TELEBIRR;
+    }
 
     try {
       return await prisma.$transaction(async (tx) => {
@@ -131,6 +125,7 @@ const actualDebt =
         ) {
           (bill as any).remainingBalance = bill.amount;
         }
+        
         const calc = BillingEngine.calculate(bill);
         const paymentAmount = Number(data.amount);
 
@@ -140,9 +135,9 @@ const actualDebt =
           );
         }
 
-        if (calc.isBlocked) throw new Error(calc.blockReason);
+        if (calc.isBlocked) throw new Error(calc.blockReason || "Payment pipeline blocked.");
 
-        if (bill.biller.allowsPartial === false && paymentAmount < calc.totalRequired) {
+        if (bill.biller.allowsPartial === false && paymentAmount < calc.totalRequired - 0.01) {
           throw new Error(
             `This biller (${bill.biller.name}) does not allow partial payments. Full amount of ${calc.totalRequired} ${bill.currency} is required.`,
           );
@@ -152,11 +147,6 @@ const actualDebt =
           `Debug Payment: Received=${paymentAmount}, Required=${calc.totalRequired}`,
         );
 
-        if (paymentAmount > calc.totalRequired + 0.1) {
-          throw new Error(
-            `Overpayment not allowed. Expected ${calc.totalRequired}, got ${paymentAmount}`,
-          );
-        }
         if (paymentAmount <= calc.penaltyFee) {
           throw new Error(
             `Payment must exceed penalty fee of ${calc.penaltyFee} ${bill.currency}`,
@@ -165,22 +155,31 @@ const actualDebt =
 
         const principalPaid = paymentAmount - calc.penaltyFee;
         let agentCommission = agent.code === "TELEBIRR" ? 1.5 : 2.0;
+        const calculatedBillerShare = principalPaid - agentCommission - 1.0;
 
-        const transaction = await tx.transaction.update({
-          where: { id: initialTx.id },
+        // Transaction is cleanly created exactly inside the atomic pool block here
+        const transaction = await tx.transaction.create({
           data: {
+            transactionId: data.transactionId,
+            idempotencyKey: data.idempotencyKey,
             amount: principalPaid,
-            billerShare: principalPaid - agentCommission - 1.0,
+            totalAmount: paymentAmount,
+            billerShare: calculatedBillerShare > 0 ? calculatedBillerShare : 0,
             agentShare: agentCommission,
             aggregatorShare: 1.0 + calc.penaltyFee,
             status: TransactionStatus.SUCCESSFUL,
+            paymentMethod: safePaymentMethod,
+            agentId: data.agentId,
+            billId: data.billId,
+            payerPhone: data.payerPhone?.trim() || " ",
           },
           include: { agent: true },
         });
-const currentBalance =
-  Number(bill.remainingBalance) > 0
-    ? Number(bill.remainingBalance)
-    : Number(bill.amount);
+
+        const currentBalance =
+          Number(bill.remainingBalance) > 0
+            ? Number(bill.remainingBalance)
+            : Number(bill.amount);
         const newRemaining = currentBalance - principalPaid;
         const isSettled = newRemaining <= 0.05;
 
@@ -203,7 +202,7 @@ const currentBalance =
             transaction_ref: transaction.transactionId,
             customer: bill.customer?.fullName,
             amount_paid: `${paymentAmount} ${bill.currency}`,
-            remaining_balance: newRemaining,
+            remaining_balance: newRemaining > 0 ? newRemaining : 0,
             status: isSettled ? "FULLY PAID" : "PARTIALLY PAID",
             due_date: bill.dueDate.toISOString().split("T")[0],
             paymentDate: transaction.createdAt.toISOString().split("T")[0],
@@ -211,10 +210,6 @@ const currentBalance =
         };
       });
     } catch (error: any) {
-      await prisma.transaction.update({
-        where: { id: initialTx.id },
-        data: { status: TransactionStatus.FAILED },
-      });
       throw error;
     }
   }
