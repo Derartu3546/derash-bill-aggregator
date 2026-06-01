@@ -78,12 +78,12 @@ export class AgentService {
     }
   }
 
-  async confirmPayment(data: {
+async confirmPayment(data: {
     billId: string;
     agentId: string;
     transactionId: string;
     amount: number;
-    paymentMethod: any; // Allow incoming type mappings flexibility
+    paymentMethod: any;
     idempotencyKey: string;
     payerPhone?: string;
   }) {
@@ -92,21 +92,38 @@ export class AgentService {
     });
     if (!agent) throw new Error("Unauthorized Agent.");
 
-    const isPhoneEmpty = !data.payerPhone || data.payerPhone.trim() === "" || data.payerPhone.trim() === " ";
-    if (agent.code === "TELEBIRR" && isPhoneEmpty) {
-      throw new Error("Payer phone number is required for Telebirr.");
+    // 1. Sanitize the identifiers for Telebirr matching
+    const cleanCode = (agent.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const cleanName = (agent.name || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    
+    const isTelebirr = 
+      cleanCode.includes("TELEBIRR") || 
+      cleanCode.includes("TELE") || 
+      cleanCode.startsWith("TEL") ||
+      cleanName.includes("TELEBIRR");
+
+    // Clean up incoming phone input strings completely
+    const cleanPhone = (data.payerPhone || "").trim();
+
+    // 💡 THE HARD STOP: Hard validation checking for Telebirr before opening the database pool
+    if (isTelebirr) {
+      if (!cleanPhone || cleanPhone === "" || cleanPhone === "N/A") {
+        throw new Error("HTTP 400 Bad Request: Payer phone number is strictly mandatory for all Telebirr network transactions.");
+      }
+      if (cleanPhone.length < 9) {
+        throw new Error("HTTP 400 Bad Request: Provided Telebirr phone number is invalid. Please provide a complete contact number.");
+      }
     }
 
-    // Safely map incoming string into real valid Prisma Enum keys
+    // 3. Dynamic Enum Resolver
     let safePaymentMethod: PaymentMethod = PaymentMethod.CASH;
     if (data.paymentMethod) {
-      const upperMethod = String(data.paymentMethod).toUpperCase();
-      if (upperMethod === "CBE") safePaymentMethod = PaymentMethod.CBE;
-      else if (upperMethod === "TELEBIRR") safePaymentMethod = PaymentMethod.TELEBIRR;
-    } else if (agent.code) {
-      const upperAgent = String(agent.code).toUpperCase();
-      if (upperAgent === "CBE") safePaymentMethod = PaymentMethod.CBE;
-      else if (upperAgent === "TELEBIRR") safePaymentMethod = PaymentMethod.TELEBIRR;
+      const upperMethod = String(data.paymentMethod).toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (upperMethod.includes("CBE")) safePaymentMethod = PaymentMethod.CBE;
+      else if (upperMethod.includes("TELEBIRR") || upperMethod.includes("TEL")) safePaymentMethod = PaymentMethod.TELEBIRR;
+    } else {
+      if (cleanCode.includes("CBE")) safePaymentMethod = PaymentMethod.CBE;
+      else if (isTelebirr) safePaymentMethod = PaymentMethod.TELEBIRR;
     }
 
     try {
@@ -119,45 +136,34 @@ export class AgentService {
         if (!bill || bill.status === BillStatus.PAID)
           throw new Error("Bill settled or not found.");
 
-        if (
-          Number(bill.remainingBalance) <= 0 &&
-          bill.status === BillStatus.UNPAID
-        ) {
+        if (Number(bill.remainingBalance) <= 0 && bill.status === BillStatus.UNPAID) {
           (bill as any).remainingBalance = bill.amount;
         }
         
         const calc = BillingEngine.calculate(bill);
         const paymentAmount = Number(data.amount);
 
-        if (paymentAmount > calc.totalRequired + 0.1) {
-          throw new Error(
-            `Overpayment not allowed. Expected ${calc.totalRequired}, got ${paymentAmount}`,
-          );
+        // Overpayment logic verification
+        if (paymentAmount > calc.totalRequired) {
+          throw new Error(`Overpayment Rejected. Max allowed is ${calc.totalRequired} ${bill.currency}.`);
         }
 
         if (calc.isBlocked) throw new Error(calc.blockReason || "Payment pipeline blocked.");
 
         if (bill.biller.allowsPartial === false && paymentAmount < calc.totalRequired - 0.01) {
-          throw new Error(
-            `This biller (${bill.biller.name}) does not allow partial payments. Full amount of ${calc.totalRequired} ${bill.currency} is required.`,
-          );
+          throw new Error(`This biller (${bill.biller.name}) requires full payment of ${calc.totalRequired} ${bill.currency}.`);
         }
 
-        console.log(
-          `Debug Payment: Received=${paymentAmount}, Required=${calc.totalRequired}`,
-        );
-
         if (paymentAmount <= calc.penaltyFee) {
-          throw new Error(
-            `Payment must exceed penalty fee of ${calc.penaltyFee} ${bill.currency}`,
-          );
+          throw new Error(`Payment must exceed penalty fee of ${calc.penaltyFee} ${bill.currency}`);
         }
 
         const principalPaid = paymentAmount - calc.penaltyFee;
-        let agentCommission = agent.code === "TELEBIRR" ? 1.5 : 2.0;
+        
+        // Dynamic Commission Split Logic
+        let agentCommission = isTelebirr ? 1.5 : 2.0;
         const calculatedBillerShare = principalPaid - agentCommission - 1.0;
 
-        // Transaction is cleanly created exactly inside the atomic pool block here
         const transaction = await tx.transaction.create({
           data: {
             transactionId: data.transactionId,
@@ -171,15 +177,13 @@ export class AgentService {
             paymentMethod: safePaymentMethod,
             agentId: data.agentId,
             billId: data.billId,
-            payerPhone: data.payerPhone?.trim() || " ",
+            // Fallback safe assignment protection
+            payerPhone: isTelebirr ? cleanPhone : (cleanPhone || "N/A"),
           },
           include: { agent: true },
         });
 
-        const currentBalance =
-          Number(bill.remainingBalance) > 0
-            ? Number(bill.remainingBalance)
-            : Number(bill.amount);
+        const currentBalance = Number(bill.remainingBalance) > 0 ? Number(bill.remainingBalance) : Number(bill.amount);
         const newRemaining = currentBalance - principalPaid;
         const isSettled = newRemaining <= 0.05;
 
@@ -195,9 +199,7 @@ export class AgentService {
 
         return {
           success: true,
-          message: isSettled
-            ? "Full Payment Successful"
-            : "Partial Payment Successful",
+          message: isSettled ? "Full Payment Successful" : "Partial Payment Successful",
           receipt: {
             transaction_ref: transaction.transactionId,
             customer: bill.customer?.fullName,
@@ -213,7 +215,6 @@ export class AgentService {
       throw error;
     }
   }
-
   async getFullReport(
     filters: {
       agentId?: string;

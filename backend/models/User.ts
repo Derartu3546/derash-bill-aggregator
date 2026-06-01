@@ -1,5 +1,17 @@
-// backend/models/User.ts
 export type UserRole = 'SYSTEM_ADMIN' | 'BILLER_USER' | 'AGENT_USER';
+
+// Define clear inline interfaces for the relational objects matching your backend payload
+export interface UserAgentRelation {
+  id: string;
+  code: string;
+  apiKey: string;
+  name: string;
+}
+
+export interface UserBillerRelation {
+  id: string;
+  name: string;
+}
 
 export class User {
   constructor(
@@ -14,7 +26,11 @@ export class User {
     public readonly agentId?: string,
     public readonly mustChangePassword: boolean = true,
     public readonly resetToken?: string | null,      // ✅ allow null
-    public readonly resetTokenExpires?: Date | null  // ✅ allow null
+    public readonly resetTokenExpires?: Date | null,  // ✅ allow null
+    
+    // 💡 Add your dynamic relations here as optional properties
+    public readonly agent?: UserAgentRelation | null,
+    public readonly biller?: UserBillerRelation | null
   ) {}
 
   // Business Rule: Can this user upload bills?

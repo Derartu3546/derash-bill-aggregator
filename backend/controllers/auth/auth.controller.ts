@@ -41,12 +41,14 @@ export const loginHandler = async (
     return reply.status(401).send({ error: "Invalid credentials" });
   }
 
-  // 4. Generate JWT
-  const token = await (reply as any).jwtSign({
-    userId: user.id,
-    role: user.role,
-  });
-
+// 4. Generate JWT with full claims structure required by auth.hook.ts
+const token = await (reply as any).jwtSign({
+  id: user.id,              // Matches decoded.id
+  email: user.email,        // Matches decoded.email
+  role: user.role,          // Matches decoded.role
+  agentId: user.agentId,    // Matches decoded.agentId
+  billerId: user.billerId,  // Matches decoded.billerId
+});
   const refreshToken = crypto.randomBytes(40).toString("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); 
 
