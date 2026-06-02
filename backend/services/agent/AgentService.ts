@@ -56,6 +56,10 @@ export class AgentService {
         warningMessage = `Grace Period Active: ${calc.graceDaysRemaining} day(s) remaining.`;
       }
 
+      // 💡 OVERRIDE EXPIRED BLOCKS FOR INQUIRY: Allow terminal to present the payment screen
+      // If it's blocked purely because it's expired, allow agent collection by overriding is_blocked
+      const finalIsBlocked = calc.effectiveStatus === "EXPIRED" ? false : calc.isBlocked;
+
       return {
         customer_name: bill.customer?.fullName || bill.customerName || "N/A",
         biller_name: bill.biller.name,
@@ -63,7 +67,7 @@ export class AgentService {
         amount_due: actualDebt > 0 ? actualDebt : calc.remainingDebt,
         late_penalty: calc.penaltyFee,
         warning: warningMessage,
-        is_blocked: calc.isBlocked,
+        is_blocked: finalIsBlocked,
         total_to_pay: displayAmount + calc.penaltyFee,
         due_date: bill.dueDate.toISOString().split("T")[0],
         currency: bill.currency,
@@ -78,7 +82,7 @@ export class AgentService {
     }
   }
 
-async confirmPayment(data: {
+  async confirmPayment(data: {
     billId: string;
     agentId: string;
     transactionId: string;
@@ -105,7 +109,7 @@ async confirmPayment(data: {
     // Clean up incoming phone input strings completely
     const cleanPhone = (data.payerPhone || "").trim();
 
-    // 💡 THE HARD STOP: Hard validation checking for Telebirr before opening the database pool
+    // THE HARD STOP: Hard validation checking for Telebirr before opening the database pool
     if (isTelebirr) {
       if (!cleanPhone || cleanPhone === "" || cleanPhone === "N/A") {
         throw new Error("HTTP 400 Bad Request: Payer phone number is strictly mandatory for all Telebirr network transactions.");
@@ -148,7 +152,11 @@ async confirmPayment(data: {
           throw new Error(`Overpayment Rejected. Max allowed is ${calc.totalRequired} ${bill.currency}.`);
         }
 
-        if (calc.isBlocked) throw new Error(calc.blockReason || "Payment pipeline blocked.");
+        // 💡 FIXED PIPELINE BLOCK: Ignore expiration blocks during agent settlements
+        const isPipelineBlocked = calc.effectiveStatus === "EXPIRED" ? false : calc.isBlocked;
+        if (isPipelineBlocked) {
+          throw new Error(calc.blockReason || "Payment pipeline blocked.");
+        }
 
         if (bill.biller.allowsPartial === false && paymentAmount < calc.totalRequired - 0.01) {
           throw new Error(`This biller (${bill.biller.name}) requires full payment of ${calc.totalRequired} ${bill.currency}.`);
@@ -177,7 +185,6 @@ async confirmPayment(data: {
             paymentMethod: safePaymentMethod,
             agentId: data.agentId,
             billId: data.billId,
-            // Fallback safe assignment protection
             payerPhone: isTelebirr ? cleanPhone : (cleanPhone || "N/A"),
           },
           include: { agent: true },
@@ -215,6 +222,7 @@ async confirmPayment(data: {
       throw error;
     }
   }
+
   async getFullReport(
     filters: {
       agentId?: string;
