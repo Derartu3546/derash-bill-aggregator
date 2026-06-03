@@ -12,14 +12,11 @@ export class BillController {
       
       let agentCode = request.headers["x-agent-code"] as string;
 
-      
       if (reqAny.agent?.code) {
         agentCode = reqAny.agent.code;
       } 
-      
       else if (reqAny.user) {
         const session = reqAny.user;
-        
         
         if (session.agentId) {
           const agent = await prisma.agent.findUnique({
@@ -28,7 +25,6 @@ export class BillController {
           });
           if (agent) agentCode = agent.code;
         } 
-       
         else if (session.id) {
           const agent = await prisma.agent.findFirst({
             where: {
@@ -43,7 +39,6 @@ export class BillController {
         }
       }
 
-     
       if (!agentCode) {
         return reply.status(403).send({
           success: false,
@@ -52,7 +47,6 @@ export class BillController {
         });
       }
 
-     
       const bill = await this.agentService.inquiry(reference, agentCode);
       
       if (!bill) {
@@ -82,18 +76,15 @@ export class BillController {
       const reqAny = request as any;
       let agentId: string | null = null;
 
-     
       if (reqAny.agent?.id) {
         agentId = reqAny.agent.id;
       } 
-     
       else if (reqAny.user) {
         const session = reqAny.user;
         
         if (session.agentId) {
           agentId = session.agentId;
         } else if (session.id) {
-          
           const foundAgent = await prisma.agent.findFirst({
             where: {
               OR: [
@@ -115,7 +106,6 @@ export class BillController {
         });
       }
 
-   
       const [stats, statusCounts, recentTransactions] = await Promise.all([
         prisma.transaction.aggregate({
           where: { agentId: agentId },
@@ -174,7 +164,7 @@ export class BillController {
     }
   };
 
-processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
+  processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = request.body as any;
       const reqAny = request as any;
@@ -215,24 +205,43 @@ processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
         return reply.status(400).send({ success: false, message: "Validation Error: Missing valid Agent identity session context." });
       }
 
-      // 2. AUTOMATIC INFERENCE: Extract cleanly from the agent's code profile identifier 
-      // If code is "CBE-1001", default derived value automatically splits down to "CBE"
+      // 💡 FIX 1: DYNAMIC INFERENCE MATCHING WITH STRIP SANITIZATION
+      // Changes from strict .startsWith to complete flexible string scan patterns
       let inferredMethod = "CASH"; 
       if (agentCode) {
-        const upperCode = agentCode.toUpperCase();
-        if (upperCode.startsWith("CBE")) inferredMethod = "CBE";
-        else if (upperCode.startsWith("TELEBIRR")) inferredMethod = "TELEBIRR";
+        const cleanUpperCode = agentCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (cleanUpperCode.includes("CBE")) {
+          inferredMethod = "CBE";
+        } else if (
+          cleanUpperCode.includes("TELEBIRR") || 
+          cleanUpperCode.includes("TELE") || 
+          cleanUpperCode.startsWith("TEL")
+        ) {
+          inferredMethod = "TELEBIRR";
+        }
       }
 
-      // 3. Assemble pristine execution parameters
+      // If a payment method is explicitly passed in the request body, honor it
+      if (body.paymentMethod || body.payment_method) {
+        const explicitMethod = String(body.paymentMethod || body.payment_method).toUpperCase();
+        if (explicitMethod.includes("CBE")) inferredMethod = "CBE";
+        else if (explicitMethod.includes("TELEBIRR") || explicitMethod.includes("TEL")) inferredMethod = "TELEBIRR";
+        else if (explicitMethod.includes("CASH")) inferredMethod = "CASH";
+      }
+
+      // 💡 FIX 2: PRESERVE ACTUAL USER PHONE FOR NETWORK VERIFICATIONS
+      // Fall back safely without dropping the raw payment parameters coming from the frontend screen
+      const actualPhone = body.payerPhone || body.payer_phone || body.phone || "";
+
+      // Assemble pristine execution parameters
       const servicePayload = {
         billId: String(body.billId || body.bill_id),
         agentId: String(fallbackAgentId),
         transactionId: String(body.transactionId || body.transaction_id),
         amount: Number(body.amount),
-        paymentMethod: inferredMethod as any, // Autocalculated seamlessly without interface exposure
+        paymentMethod: inferredMethod as any, 
         idempotencyKey: String(body.idempotencyKey || body.idempotency_key),
-        payerPhone: body.payerPhone || body.payer_phone ? String(body.payerPhone || body.payer_phone) : "0000000000",
+        payerPhone: actualPhone ? String(actualPhone).trim() : "",
       };
 
       // Call Service Transaction Logic Engine
@@ -243,7 +252,7 @@ processPayment = async (request: FastifyRequest, reply: FastifyReply) => {
       console.error("Payment Processing Error at Controller Level:", error.message || error);
       return reply.status(400).send({ 
         success: false, 
-        message: error.message || "Bad Request encountered during transaction generation execution." 
+        message: error.message || "Bad Request encountered during transaction execution." 
       });
     }
   };

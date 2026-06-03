@@ -132,12 +132,46 @@ export class AgentService {
 
     try {
       return await prisma.$transaction(async (tx) => {
-        const bill = await tx.bill.findUnique({
-          where: { id: data.billId },
-          include: { biller: true, customer: true },
-        });
+           const existingTransaction = await tx.transaction.findUnique({
+    where: {
+      idempotencyKey: data.idempotencyKey,
+    },
+  });
 
-        if (!bill || bill.status === BillStatus.PAID)
+  if (existingTransaction) {
+    return {
+      success: true,
+      message: "Payment already processed",
+      receipt: {
+        transaction_ref: existingTransaction.transactionId,
+      },
+    };
+  };  
+  const [lockedBill] = await tx.$queryRaw<any[]>`
+  SELECT *
+  FROM "Bill"
+  WHERE id = ${data.billId}
+  FOR UPDATE
+`;
+if (!lockedBill) {
+  throw new Error("Bill not found.");
+}
+
+  const fullBill = await tx.bill.findUnique({
+  where: { id: data.billId },
+  include: {
+    biller: true,
+    customer: true,
+  },
+});
+
+if (!fullBill) {
+  throw new Error("Bill not found.");
+}
+
+const bill = fullBill;
+
+  if (!bill || bill.status === BillStatus.PAID)
           throw new Error("Bill settled or not found.");
 
         if (Number(bill.remainingBalance) <= 0 && bill.status === BillStatus.UNPAID) {
@@ -191,15 +225,19 @@ export class AgentService {
         });
 
         const currentBalance = Number(bill.remainingBalance) > 0 ? Number(bill.remainingBalance) : Number(bill.amount);
-        const newRemaining = currentBalance - principalPaid;
+        const newRemaining = Number(
+      (currentBalance - principalPaid).toFixed(2)
+);
         const isSettled = newRemaining <= 0.05;
 
         await tx.bill.update({
           where: { id: bill.id },
           data: {
-            status: isSettled ? BillStatus.PAID : BillStatus.PARTIALLY_PAID,
-            amountPaid: Number(bill.amountPaid) + principalPaid,
-            remainingBalance: isSettled ? 0 : newRemaining,
+           status: isSettled ? BillStatus.PAID : BillStatus.PARTIALLY_PAID,
+           amountPaid: Number(bill.amountPaid) + principalPaid,
+           remainingBalance: isSettled
+           ? 0
+           : Math.max(0, newRemaining),
             paidAt: isSettled ? new Date() : undefined,
           },
         });

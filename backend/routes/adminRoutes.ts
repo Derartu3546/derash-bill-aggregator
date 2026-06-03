@@ -250,4 +250,3 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get("/notifications", NotificationController.getMyNotifications);
   fastify.patch("/notifications/:id/read", NotificationController.markAsRead);
 }
-

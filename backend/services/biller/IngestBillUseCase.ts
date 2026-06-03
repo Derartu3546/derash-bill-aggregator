@@ -2,7 +2,6 @@ import { IBillRepository } from "../../models/IBillRepository";
 import { prisma } from "../../config/prisma";
 import { NotificationService } from "../../shared/NotificationService";
 import { BillStatus } from "@prisma/client";
-import { parseFile } from "../../shared/utils/fileParser";
 
 interface IngestionFallbacks {
   period?: string;
@@ -19,36 +18,49 @@ export class IngestBillUseCase {
     fallbacks?: IngestionFallbacks,
   ) {
     const isSystemAdmin = currentUser.role === "SYSTEM_ADMIN";
+
     const isThisBiller =
-      currentUser.role === "BILLER_USER" && currentUser.billerId === billerId;
+      currentUser.role === "BILLER_USER" &&
+      currentUser.billerId === billerId;
 
     if (!isSystemAdmin && !isThisBiller) {
       throw new Error(
         "Unauthorized: You can only upload bills for your own organization",
       );
     }
+
     const report = {
       total: bills.length,
       success: 0,
       failed: 0,
       duplicates: 0,
     };
-    // 1. Extract all bill refernces to check for duplicates in one go
-    const billRefs = bills.map(b => b.billReference);
-    // 2. Query existing bills in one single database call
+
+    // Get all bill references
+    const billRefs = bills.map((b) => b.billReference);
+
+    // Fetch existing bills once
     const existingBills = await prisma.bill.findMany({
       where: {
         billerId,
-        billReference: { in: billRefs },
+        billReference: {
+          in: billRefs,
+        },
       },
-      select: { billReference: true, period: true }
+      select: {
+        billReference: true,
+        period: true,
+      },
     });
+
     const existingSet = new Set(
-      existingBills.map((b) => `${b.billReference}-${b.period}`),
+      existingBills.map(
+        (b) => `${b.billReference}-${b.period}`,
+      ),
     );
 
-    const seen = new Set();
-    const toInsert = [];
+    const seen = new Set<string>();
+    const toInsert: any[] = [];
 
     for (const billData of bills) {
       const finalPeriod = billData.period || fallbacks?.period;
@@ -66,7 +78,10 @@ export class IngestBillUseCase {
         continue;
       }
 
-      if (typeof billData.amount !== "number" || billData.amount <= 0) {
+      if (
+        typeof billData.amount !== "number" ||
+        billData.amount <= 0
+      ) {
         report.failed++;
         continue;
       }
@@ -84,29 +99,41 @@ export class IngestBillUseCase {
         billReference: billData.billReference,
         customerName: billData.customerName,
         amount: billData.amount,
+
+        // FIXED
+        amountPaid: 0,
+        remainingBalance: billData.amount,
+
         period: finalPeriod,
         dueDate: parsedDate,
         billerId,
+
         status: BillStatus.UNPAID,
         currency: "ETB",
       });
     }
-    // 4 Use createMany for high speed bulk insertion
+
     if (toInsert.length > 0) {
       const result = await prisma.bill.createMany({
         data: toInsert,
         skipDuplicates: true,
       });
+
       report.success = result.count;
     }
+
+    report.failed =
+      report.total -
+      report.success -
+      report.duplicates;
 
     if (report.success > 0) {
       try {
         await NotificationService.sendToAdmins(
           "New Bills Ingested",
           `Biller ${billerId} uploaded ${report.success} new bills successfully.`,
-          "BILL_UPLOADED"
-        )
+          "BILL_UPLOADED",
+        );
       } catch (notifyError) {
         console.error(
           "Notification failed to send, but bills were saved:",
