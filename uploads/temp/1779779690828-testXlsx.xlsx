@@ -1,0 +1,4 @@
+billReference,customerName,amount,period,dueDate
+REF-001,John Doe,1500.50,2026-May,2026-06-15
+REF-002,Jane Smith,2300.00,2026-May,2026-06-15
+REF-003,Tech Corp,5500.00,2026-May,2026-06-15

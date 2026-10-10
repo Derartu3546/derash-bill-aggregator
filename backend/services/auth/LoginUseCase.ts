@@ -41,7 +41,6 @@ export class LoginUseCase {
       }
     }
 
-    // const hash = await this.useRepo.getHashByEmail(email);
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) throw new Error("Invalid email or password");
     if (user.mustChangePassword) {

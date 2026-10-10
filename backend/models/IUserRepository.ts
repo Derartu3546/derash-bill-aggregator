@@ -1,4 +1,3 @@
-// backend/models/IUserRepository.ts
 import { User, UserRole } from './User';
 import { RefreshToken } from '@prisma/client';
 

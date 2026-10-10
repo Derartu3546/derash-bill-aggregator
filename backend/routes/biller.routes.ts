@@ -465,7 +465,6 @@ export async function billerRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // DELETE /bills/:id - Soft delete a single bill
   fastify.delete(
     "/bills/:id",
     { preHandler: [authenticateSession] },
@@ -481,7 +480,6 @@ export async function billerRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // DELETE /bills/all - Soft delete all bills for the authenticated biller
   fastify.delete(
     "/bills/all",
     { preHandler: [authenticateSession] },

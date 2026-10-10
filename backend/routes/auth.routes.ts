@@ -133,13 +133,13 @@ export async function authRoutes(fastify: FastifyInstance) {
             throw new Error("Failed to generate authentication tokens");
           }
 
-          // ✅ Conditional cookie security – works for localhost (self‑signed HTTPS) and production
+          // Conditional cookie security – works for localhost (self‑signed HTTPS) and production
           const origin = request.headers.origin || '';
           const isLocal = origin.includes('localhost');
           reply.setCookie("access_token", accessToken, {
             path: "/",
             httpOnly: true,
-            secure: !isLocal,          // false for localhost, true otherwise
+            secure: !isLocal,          
             sameSite: isLocal ? "lax" : "none",
             maxAge: 900,
           });
@@ -322,7 +322,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         },
         {
           headers: {
-            "api-key": process.env.BREVO_API_KEY, // Set this in Render Dashboard
+            "api-key": process.env.BREVO_API_KEY, 
             "content-type": "application/json",
           },
         },
