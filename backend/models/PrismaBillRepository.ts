@@ -195,6 +195,7 @@ export class PrismaBillRepository implements IBillRepository {
     return await prisma.bill.findMany({
       where: {
         billerId: billerId,
+        isDeleted: false,
         createdAt: {
           ...(fromDate && { gte: new Date(fromDate) }),
           ...(toDate && { lte: new Date(toDate) }),
