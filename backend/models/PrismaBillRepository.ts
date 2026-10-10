@@ -69,7 +69,7 @@ export class PrismaBillRepository implements IBillRepository {
     tx: any,
     status: BillStatus,
     amountPaid?: number,
-    remainingBalance?:number
+    remainingBalance?: number,
   ): Promise<Bill> {
     const updated = await tx.bill.update({
       where: { id },
@@ -139,25 +139,43 @@ export class PrismaBillRepository implements IBillRepository {
     const [counts, revenueData, monthlyRevenueData] = await Promise.all([
       prisma.bill.groupBy({
         by: ["status"],
-        where: { billerId },
+        where: {
+          billerId,
+          isDeleted: false,
+        },
         _count: true,
-      }),
-
-      prisma.bill.aggregate({
-        where: { billerId },
-        _sum: { amountPaid: true, amount: true },
       }),
 
       prisma.bill.aggregate({
         where: {
           billerId,
-          createdAt: { gte: startOfMonth },
+          isDeleted: false,
         },
-        _sum: { amountPaid: true },
+        _sum: {
+          amountPaid: true,
+          amount: true,
+        },
+      }),
+
+      prisma.bill.aggregate({
+        where: {
+          billerId,
+          isDeleted: false,
+          createdAt: {
+            gte: startOfMonth,
+          },
+        },
+        _sum: {
+          amountPaid: true,
+        },
       }),
     ]);
 
-    return { counts, revenueData, monthlyRevenueData };
+    return {
+      counts,
+      revenueData,
+      monthlyRevenueData,
+    };
   }
 
   async findByBillerId(billerId: string) {
