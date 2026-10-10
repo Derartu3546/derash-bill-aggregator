@@ -15,7 +15,11 @@ export class AgentService {
       }
 
       const bill = await prisma.bill.findFirst({
-        where: { billReference: billReference },
+        where: {
+          billReference: billReference,
+          isDeleted: false,
+
+        },
         include: { biller: true, customer: true },
       });
 
@@ -151,19 +155,24 @@ export class AgentService {
   SELECT *
   FROM "Bill"
   WHERE id = ${data.billId}
+    AND "isDeleted" = false
   FOR UPDATE
 `;
-if (!lockedBill) {
-  throw new Error("Bill not found.");
-}
+
+  if (!lockedBill) {
+    throw new Error("Bill not found or has been deleted.");
+  }
 
   const fullBill = await tx.bill.findUnique({
-  where: { id: data.billId },
-  include: {
-    biller: true,
-    customer: true,
-  },
-});
+    where: {
+      id: data.billId,
+      isDeleted: false,
+    },
+    include: {
+      biller: true,
+      customer: true,
+    },
+  });
 
 if (!fullBill) {
   throw new Error("Bill not found.");
