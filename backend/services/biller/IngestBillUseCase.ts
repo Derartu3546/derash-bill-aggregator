@@ -20,8 +20,7 @@ export class IngestBillUseCase {
     const isSystemAdmin = currentUser.role === "SYSTEM_ADMIN";
 
     const isThisBiller =
-      currentUser.role === "BILLER_USER" &&
-      currentUser.billerId === billerId;
+      currentUser.role === "BILLER_USER" && currentUser.billerId === billerId;
 
     if (!isSystemAdmin && !isThisBiller) {
       throw new Error(
@@ -36,10 +35,9 @@ export class IngestBillUseCase {
       duplicates: 0,
     };
 
-    // Get all bill references
     const billRefs = bills.map((b) => b.billReference);
 
-    // Fetch existing bills once
+    // Fetch existing bills, including soft-deleted bills.
     const existingBills = await prisma.bill.findMany({
       where: {
         billerId,
@@ -48,16 +46,32 @@ export class IngestBillUseCase {
         },
       },
       select: {
+        id: true,
         billReference: true,
         period: true,
+        isDeleted: true,
       },
     });
 
-    const existingSet = new Set(
-      existingBills.map(
-        (b) => `${b.billReference}-${b.period}`,
-      ),
-    );
+    const activeSet = new Set<string>();
+    const deletedMap = new Map<
+      string,
+      { id: string; billReference: string; period: string }
+    >();
+
+    for (const bill of existingBills) {
+      const key = `${bill.billReference}-${bill.period}`;
+
+      if (bill.isDeleted) {
+        deletedMap.set(key, {
+          id: bill.id,
+          billReference: bill.billReference,
+          period: bill.period,
+        });
+      } else {
+        activeSet.add(key);
+      }
+    }
 
     const seen = new Set<string>();
     const toInsert: any[] = [];
@@ -66,7 +80,7 @@ export class IngestBillUseCase {
       const finalPeriod = billData.period || fallbacks?.period;
       const finalDueDate = billData.dueDate || fallbacks?.dueDate;
 
-      if (!finalPeriod || !finalDueDate) {
+      if (!finalPeriod || !finalDueDate || !billData.billReference) {
         report.failed++;
         continue;
       }
@@ -80,6 +94,7 @@ export class IngestBillUseCase {
 
       if (
         typeof billData.amount !== "number" ||
+        !Number.isFinite(billData.amount) ||
         billData.amount <= 0
       ) {
         report.failed++;
@@ -88,26 +103,48 @@ export class IngestBillUseCase {
 
       const key = `${billData.billReference}-${finalPeriod}`;
 
-      if (seen.has(key) || existingSet.has(key)) {
+      // Skip repeated entries in the same uploaded file.
+      if (seen.has(key)) {
         report.duplicates++;
         continue;
       }
 
       seen.add(key);
 
+      // Skip a matching bill that is already active.
+      if (activeSet.has(key)) {
+        report.duplicates++;
+        continue;
+      }
+
+      // Restore a matching soft-deleted bill instead of creating a new row.
+      const deletedBill = deletedMap.get(key);
+
+      if (deletedBill) {
+        await prisma.bill.update({
+          where: {
+            id: deletedBill.id,
+          },
+          data: {
+            isDeleted: false,
+            deletedAt: null,
+          },
+        });
+
+        report.success++;
+        continue;
+      }
+
+      // Insert a genuinely new bill.
       toInsert.push({
         billReference: billData.billReference,
         customerName: billData.customerName,
         amount: billData.amount,
-
-        // FIXED
         amountPaid: 0,
         remainingBalance: billData.amount,
-
         period: finalPeriod,
         dueDate: parsedDate,
         billerId,
-
         status: BillStatus.UNPAID,
         currency: "ETB",
       });
@@ -119,19 +156,16 @@ export class IngestBillUseCase {
         skipDuplicates: true,
       });
 
-      report.success = result.count;
+      report.success += result.count;
     }
 
-    report.failed =
-      report.total -
-      report.success -
-      report.duplicates;
+    report.failed = report.total - report.success - report.duplicates;
 
     if (report.success > 0) {
       try {
         await NotificationService.sendToAdmins(
           "New Bills Ingested",
-          `Biller ${billerId} uploaded ${report.success} new bills successfully.`,
+          `Biller ${billerId} uploaded or restored ${report.success} bills successfully.`,
           "BILL_UPLOADED",
         );
       } catch (notifyError) {

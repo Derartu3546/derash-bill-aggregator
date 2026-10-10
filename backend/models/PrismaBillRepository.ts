@@ -235,7 +235,7 @@ export class PrismaBillRepository implements IBillRepository {
         billReference: billReference,
         period: period,
         billerId: billerId,
-        // isDeleted: false,
+        isDeleted: false,
       },
     });
   }
