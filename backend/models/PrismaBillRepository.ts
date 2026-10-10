@@ -56,10 +56,11 @@ export class PrismaBillRepository implements IBillRepository {
 
   async findByIdWithLock(id: string, tx: any): Promise<Bill | null> {
     const [bill]: any = await tx.$queryRaw`
-        SELECT * FROM "Bill"
-        WHERE id = ${id}
-        FOR UPDATE
-      `;
+    SELECT * FROM "Bill"
+    WHERE id = ${id}
+      AND "isDeleted" = false
+    FOR UPDATE
+  `;
 
     return bill ? this.mapToEntity(bill) : null;
   }
