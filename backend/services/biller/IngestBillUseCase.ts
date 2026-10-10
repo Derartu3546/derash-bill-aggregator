@@ -163,9 +163,16 @@ export class IngestBillUseCase {
 
     if (report.success > 0) {
       try {
+        const biller = await prisma.biller.findUnique({
+          where: { id: billerId },
+          select: { name: true },
+        });
+
+        const billerName = biller?.name || "Unknown Biller";
+
         await NotificationService.sendToAdmins(
           "New Bills Ingested",
-          `Biller ${billerId} uploaded or restored ${report.success} bills successfully.`,
+          `${billerName} uploaded or restored ${report.success} bills successfully.`,
           "BILL_UPLOADED",
         );
       } catch (notifyError) {
