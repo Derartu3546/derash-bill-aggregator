@@ -73,14 +73,20 @@ export class PrismaBillerRepository implements IBillerRepository {
 
   async getBillerStats(billerId: string) {
     const totals = await prisma.bill.aggregate({
-      where: { billerId },
+      where: {
+        billerId,
+        isDeleted: false,
+      },
       _count: { _all: true },
       _sum: { amount: true },
     });
 
     const statusBreakdown = await prisma.bill.groupBy({
       by: ["status"],
-      where: { billerId },
+      where: {
+        billerId,
+        isDeleted: false,
+      },
       _count: { _all: true },
       _sum: { amount: true },
     });
@@ -111,7 +117,7 @@ export class PrismaBillerRepository implements IBillerRepository {
     await prisma.biller.update({
       where: { id },
       data: {
-        isActive: !biller.isActive, 
+        isActive: !biller.isActive,
       },
     });
   }
