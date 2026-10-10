@@ -48,6 +48,7 @@ export class PrismaBillRepository implements IBillRepository {
       where: {
         billReference,
         status: "UNPAID",
+        isDeleted: false,
       },
     });
 
