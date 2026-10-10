@@ -9,31 +9,26 @@ export class BillController {
     try {
       const { reference } = request.params as { reference: string };
       const reqAny = request as any;
-      
+
       let agentCode = request.headers["x-agent-code"] as string;
 
       if (reqAny.agent?.code) {
         agentCode = reqAny.agent.code;
-      } 
-      else if (reqAny.user) {
+      } else if (reqAny.user) {
         const session = reqAny.user;
-        
+
         if (session.agentId) {
           const agent = await prisma.agent.findUnique({
             where: { id: session.agentId },
-            select: { code: true }
+            select: { code: true },
           });
           if (agent) agentCode = agent.code;
-        } 
-        else if (session.id) {
+        } else if (session.id) {
           const agent = await prisma.agent.findFirst({
             where: {
-              OR: [
-                { id: session.id },
-                { users: { some: { id: session.id } } }
-              ]
+              OR: [{ id: session.id }, { users: { some: { id: session.id } } }],
             },
-            select: { code: true }
+            select: { code: true },
           });
           if (agent) agentCode = agent.code;
         }
@@ -43,32 +38,41 @@ export class BillController {
         return reply.status(403).send({
           success: false,
           error: "Forbidden",
-          message: "Access Denied: Unable to safely map your request context to a registered Agent Code.",
+          message:
+            "Access Denied: Unable to safely map your request context to a registered Agent Code.",
         });
       }
 
       const bill = await this.agentService.inquiry(reference, agentCode);
-      
+
       if (!bill) {
-        return reply.status(404).send({ 
-          success: false, 
-          message: "No unpaid bill found with that reference identifier." 
+        return reply.status(404).send({
+          success: false,
+          message: "No unpaid bill found with that reference identifier.",
         });
       }
 
-      return reply.send({ 
-        success: true, 
-        data: bill 
+      return reply.send({
+        success: true,
+        data: bill,
       });
-
     } catch (error: any) {
       console.error("Bill Inquiry Error:", error);
-      return reply.status(500).send({ 
-        success: false, 
+
+      if (error.message === "No bill found with the provided reference.") {
+        return reply.status(404).send({
+          success: false,
+          message:
+            "No active bill found with that reference. It may be deleted or invalid.",
+        });
+      }
+
+      return reply.status(500).send({
+        success: false,
         message: "Internal Server Error during bill inquiry processing.",
-        details: error.message 
       });
     }
+
   };
 
   getDashboard = async (request: FastifyRequest, reply: FastifyReply) => {
